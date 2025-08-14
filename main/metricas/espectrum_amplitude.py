@@ -6,7 +6,7 @@ import os
 # Caminho dos áudios
 original_folder = r'C:\Users\USER\Documents\Mestrado\codigo\Mestrado_VC\out\o'
 processed_folder = r'C:\Users\USER\Documents\Mestrado\codigo\Mestrado_VC\out\g'
-output_folder = r'salvar_graficos/'
+output_folder = r'graficos/'
 os.makedirs(output_folder, exist_ok=True)
 
 def compute_amplitude_spectrum(file_path):
