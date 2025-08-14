@@ -1,0 +1,9 @@
+dataset
+checkpoints
+disciplinas
+output
+models
+.venv
+.idea
+main/arquitetura/seedVC/checkpoints
+main/arquitetura/seedVC/output
