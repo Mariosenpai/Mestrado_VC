@@ -4,8 +4,8 @@ import torch
 from scipy import signal
 from torch import Tensor
 
-from main.arquitetura.auto_encoder.modelo.auto_encoder import GenerativeNetworkAuto
-from main.arquitetura.auto_encoder.fit.treinamento.LE import pegar_spectograma_natural_e_eletronico_redimencionado
+from deprecated.auto_encoder.modelo import GenerativeNetworkAuto
+from deprecated.auto_encoder.fit import pegar_spectograma_natural_e_eletronico_redimencionado
 from main.config import image_size
 
 

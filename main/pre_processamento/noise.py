@@ -3,7 +3,7 @@ import pyworld as pw
 import librosa
 
 
-def f0_constante(x, sr, f0_floor=25.0, f0_ceil=500.0, frame_period=5.0, speed=1, f0_contante=80.0):
+def f0_constante(x, sr, f0_floor=25.0, f0_ceil=90.0, frame_period=1.0, speed=1, f0_contante=60.0):
     # 1. A convient way
     f0, sp, ap = pw.wav2world(x, sr)  # use default options
     y = pw.synthesize(f0, sp, ap, sr, pw.default_frame_period)

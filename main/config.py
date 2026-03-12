@@ -1,5 +1,5 @@
-path_save_auto = "arquitetura/auto_encoder/pesos"
-path_save_GAN = "arquitetura/GAN/pesos"
+path_save_auto = "../deprecated/auto_encoder/pesos"
+path_save_GAN = "../deprecated/GAN/pesos"
 
 image_size = 1024
 tamanho_tensor = 1318970 #1420000

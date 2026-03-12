@@ -18,6 +18,9 @@ def calculate_snr_tensor(original: torch.Tensor, generated: torch.Tensor) -> tor
     # snr = 10 * torch.log10((signal_power + eps) / (noise_power + eps))
     # return torch.mean(snr)  # Média para o batch
 
+    original = torch.Tensor(original)
+    generated = torch.Tensor(generated)
+
     signal = original  ## input orignal data
     mean_signal = torch.mean(signal)
     signal_diff = torch.subtract(signal, mean_signal)

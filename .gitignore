@@ -2,7 +2,7 @@ dataset
 checkpoints
 disciplinas
 output
-models
+model
 .venv
 .idea
 main/arquitetura/seedVC/checkpoints

@@ -24,14 +24,20 @@ def _transcricao(audio_np, sr):
     return transcricao
 
 
-def _wer(x, y, sr):
+def _wer(x, y, sr_x,sr_y):
     from jiwer import wer
-    referencia = _transcricao(x, sr)
-    hipotese = _transcricao(y, sr)
+    referencia = _transcricao(x, sr_x)
+    hipotese = _transcricao(y, sr_y)
     erro = wer(referencia, hipotese)
 
     return erro
 
+def _wer_with_one_trans(trans: str, y,sr_y):
+    from jiwer import wer
+    hipotese = _transcricao(y, sr_y)
+    erro = wer(trans, hipotese)
+
+    return erro
 
 if __name__ == '__main__':
     x, fs = librosa.load(
