@@ -5,5 +5,6 @@ output
 model
 .venv
 .idea
+tradutor
 main/arquitetura/seedVC/checkpoints
 main/arquitetura/seedVC/output
