@@ -4,13 +4,9 @@ import torch
 import numpy as np
 from tqdm import tqdm
 
-from bibliotecas_externas.seq2seqvc.seq2seq_vc.models import VTN
-from main.arquitetura.Seq2SeqVC.deprected.collate import get_info_audio, format_batch
 from main.loggs.relatorio_validacao import Relatorio_validacao
 from main.metricas import metricas_avalicao_model
-from main.utils.visualizar import vizualizar_spectrogram
-from main.vocoder.HiFiGAN import mel_for_audio
-from main.pre_processamento.noise import f0_constante
+
 
 
 def one_validation(model, device, valid_loader, criterion, is_test=False):

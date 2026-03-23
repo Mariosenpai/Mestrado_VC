@@ -6,6 +6,7 @@ import torch
 import wandb
 from matplotlib import pyplot as plt
 from tqdm.auto import tqdm
+import soundfile as sf
 
 from bibliotecas_externas.seq2seqvc.seq2seq_vc.trainers import ARVCTrainer, AASVCTrainer
 from main.arquitetura.Seq2SeqVC.deprected.validation import fix_shape_min
@@ -85,11 +86,15 @@ class Trainer(AASVCTrainer):
         #     [_.to(self.device) if _ is not None else _ for _ in batch]
         # )
 
-        pbar = tqdm(self.data_loader["dev"], desc="Validacao", total=len(self.data_loader["dev"]))
+        pbar = tqdm(self.data_loader["dev"], desc="[Validacao]", total=len(self.data_loader["dev"]))
 
         with torch.no_grad():
 
             for i, batch in enumerate(pbar):
+
+                # ==========================
+                # Fragmentação do Batch
+                # ==========================
 
                 xs = batch["xs"].to(self.device)
                 ilens = batch["ilens"].to(self.device)
@@ -97,7 +102,7 @@ class Trainer(AASVCTrainer):
                 ys = batch["ys"].to(self.device)
                 olens = batch["olens"].to(self.device)
 
-                dp_inputs = batch["dp_inputs"].to(self.device)
+                duraction_predict = batch["dp_inputs"].to(self.device)
                 dplens = batch["dplens"].to(self.device)
 
                 spembs = batch["spembs"]
@@ -108,106 +113,148 @@ class Trainer(AASVCTrainer):
                 # ==========================
                 # Forward
                 # ==========================
-                ret = self.model(
+                output_model = self.model(
                     xs,
                     ilens,
                     ys,
                     olens,
-                    dp_inputs,
+                    duraction_predict,
                     dplens,
                     spembs
                 )
 
-                ds = ret["ds"]
-                ilens_ = ret["ilens"]
-                olens_ = ret["olens"]
-                bin_loss = ret["bin_loss"]
-                log_p_attn = ret["log_p_attn"]
-                olens_reduced = ret["olens_reduced"]
-                ys_gt = ret["ys"]
+                ds = output_model["ds"]
+                after_outs = output_model["after_outs"]
+                ilens_ = output_model["ilens"]
+                olens_ = output_model["olens"]
+                bin_loss = output_model["bin_loss"]
+                log_p_attn = output_model["log_p_attn"]
+                olens_reduced = output_model["olens_reduced"]
+                ys_gt = output_model["ys"]
 
                 # ==========================
                 # Reconstruction loss
                 # ==========================
-                gen_loss = self._calculate_loss(ret, ds, olens_, ilens_, bin_loss, log_p_attn, olens_reduced)
+                gen_loss = self._calculate_loss(output_model, ds, olens_, ilens_, bin_loss, log_p_attn, olens_reduced)
 
                 # loss = l1_loss + ret["bin_loss"]
                 total_loss += gen_loss.item()
 
                 # ==========================
-                # Inference para métricas
+                # métricas
                 # ==========================
 
-                x = xs[0] # [:ilens_]
-                y = ys_gt[0]  # ys[0][:olens_]
+                grouth_truth = ys_gt[0]
+                x = xs[0]
 
-                outs_ori, d_outs, *other = self.model.inference(
+                output_inference, d_outs, *other = self.model.inference(
                     src_speech=x,
-                    tgt_speech=y,
+                    tgt_speech=grouth_truth,
                     spembs=spembs,
-                    dp_input=dp_inputs[0],
+                    dp_input=duraction_predict[0],
                     use_teacher_forcing=False
                 )
 
-                clean_audio_image = y
-
                 # alinhar tamanhos
-                clean_audio_image, outs = fix_shape_min(
-                    clean_audio_image.unsqueeze(0),
-                    outs_ori.unsqueeze(0)
+                grouth_truth, output_inference = fix_shape_min(
+                    grouth_truth.unsqueeze(0),
+                    output_inference.unsqueeze(0)
                 )
 
-                outs = self.gpu_to_cpu(outs.squeeze(0))
-                clean_audio_image = self.gpu_to_cpu(clean_audio_image.squeeze(0))
+                output_inference_gpu = output_inference.squeeze(0).clone()
+                output_inference = self.gpu_to_cpu(output_inference.squeeze(0))
+                grouth_truth = self.gpu_to_cpu(grouth_truth.squeeze(0))
 
                 metrica = metricas_avalicao_model(
-                    clean_audio_image,
-                    outs
+                    grouth_truth,
+                    output_inference
                 )
 
                 total_mcd += metrica.mcd
                 total_snr += metrica.snr
                 total_psnr += metrica.psnr
 
+                # ==========================
+                # Inference
+                # ==========================
                 if i <= self.config["num_save_intermediate_results"]:
+
                     self._plot_and_save(
-                        outs,
-                        dirname + f"/{i}_out.png",
-                        ref=clean_audio_image,
+                        after_outs[0].cpu().numpy(),
+                        dirname + f"/{i}_out_model.png",
+                        ref=grouth_truth,
                         origin="lower",
                     )
 
+                    self._plot_and_save(
+                        output_inference,
+                        dirname + f"/{i}_out_inference.png",
+                        ref=grouth_truth,
+                        origin="lower",
+                    )
+
+                    if self.vocoder is not None:
+                        if not os.path.exists(os.path.join(dirname, "wav")):
+                            os.makedirs(os.path.join(dirname, "wav"), exist_ok=True)
+                        y, sr = self.vocoder.decode(output_inference_gpu.float()) # tem q ser um tensor
+                        sf.write(
+                            os.path.join(dirname, "wav", f"{i}_gen.wav"),
+                            y.cpu().numpy(),
+                            sr,
+                            "PCM_16",
+                        )
+
                 pbar.set_postfix(loss=total_loss / (i + 1))
 
-                if self.is_test:
+                if self.is_test and i > self.config["num_save_intermediate_results"]:
                     break
 
-        # self.set_relatorio(
-        #     self._create_relatorio(
-        #         outs=outs,
-        #         y=ys[0],
-        #         audio=audios[0],
-        #         idx=i,
-        #         total_mcd=total_mcd,
-        #         total_snr=total_snr,
-        #         total_psnr=total_psnr,
-        #         sr=srs[0]
-        #
-        #     )
-        # )
+        num_batches = i + 1
+
+        avg_loss = total_loss / num_batches
+        avg_mcd = total_mcd / num_batches
+        avg_snr = total_snr / num_batches
+        avg_psnr = total_psnr / num_batches
+
 
         relatorio = self._create_relatorio(
-            outs=outs,
-            y=ys[0],
-            audio=audios[0],
-            idx=i,
-            total_mcd=total_mcd,
-            total_snr=total_snr,
-            total_psnr=total_psnr,
-            sr=srs[0]
+                outs=output_inference,
+                grouth_truth = grouth_truth,
+                loss_val=avg_loss,
+                loss_train = self.loss_train ,
+                audio=audios[0],
+                idx=i,
+                total_mcd=avg_mcd,
+                total_snr=avg_snr,
+                total_psnr=avg_psnr,
+                sr=srs[0]
         )
 
-        print(relatorio)
+        data = {
+            "mdc": float(relatorio.mdc),
+            "snr": relatorio.snr.float(),
+            "psnr": relatorio.psnr,
+            "loss_train": self.loss_train,
+            "loss_val": avg_loss,
+        }
+
+        with open(os.path.join(dirname, "relatorio.json"), "w") as f:
+            f.write(f"---------------------------------------------------------------------------------------------\n"
+                    f"Metricas: {data}\n"
+                    f"Steps:    {self.steps}\n"
+                    f"Epochs:   {self.epochs}"
+                    f"\n---------------------------------------------------------------------------------------------")
+
+        self.set_relatorio(relatorio)
+
+
+
+
+    def _vocoder_inference(self,output_inference):
+        if self.vocoder is not None:
+            y, sr = self.vocoder.decode(torch.Tensor(output_inference).float())
+            return y, sr
+
 
     def fix_shape_min(self, obj1: torch.Tensor, obj2: torch.Tensor):
         T = min(obj1.size(1), obj2.size(1))
@@ -223,11 +270,9 @@ class Trainer(AASVCTrainer):
             "SNR": relatorio.snr,
             "PSNR": relatorio.psnr,
             "loss_train": {
-                "L1": self.total_train_loss["train/l1_loss"],
-                "BCE": self.total_train_loss["train/bce_loss"],
-                "loss": self.total_train_loss["train/loss"],
+                "loss_train": relatorio.loss_train,
+                "loss_val": relatorio.loss_val
             },
-            "loss_val": relatorio.loss,
             "mel_exemple": {
                 "ground_truth": wandb.Image(mel_to_rgb(relatorio.grouth_truth)),
                 "prediction": wandb.Image(mel_to_rgb(relatorio.pred)),
@@ -237,32 +282,31 @@ class Trainer(AASVCTrainer):
                 "noise": wandb.Audio(relatorio.audio_noise, sample_rate=int(relatorio.sr)),
                 "prediction": wandb.Audio(relatorio.audio_pred, sample_rate=sr_hifigan()),
             },
-            "epocas": self.epochs + 1
+            "epocas": self.epochs,
+            "steps": self.steps
         }
 
-    def _create_relatorio(self, outs, y, audio, idx, total_mcd, total_snr, total_psnr, sr):
+    def _create_relatorio(self, outs,grouth_truth, loss_val,loss_train, audio, idx, total_mcd, total_snr, total_psnr, sr):
         def gpu_to_cpu(obj):
             return obj.cpu().detach().numpy()
 
         mel_spec_final = torch.Tensor(outs).unsqueeze(0).permute(0, 2, 1)
-        audio_pred = mel_for_audio(mel_spec_final.to('cuda'))
+        clean_audio_image = torch.Tensor(grouth_truth).unsqueeze(0).permute(0, 2, 1)
+
+        audio_pred, _ = self._vocoder_inference(outs)
         audio_noise = f0_constante(audio.astype(np.float64), sr=sr)
 
-        total_loss = 0  #total_loss / (idx + 1)
-        total_mcd += total_mcd / (idx + 1)
-        total_snr += total_snr / (idx + 1)
-        total_psnr += total_psnr / (idx + 1)
-
-        clean_audio_image = gpu_to_cpu(mel_spec_final[0].permute(1, 0))
-        audio_pred = gpu_to_cpu(audio_pred[0][0])
+        audio_pred = gpu_to_cpu(audio_pred)
         before_outs = gpu_to_cpu(mel_spec_final[0])
+        clean_audio_image = gpu_to_cpu(clean_audio_image[0])
 
         return Relatorio_validacao(
             mdc=total_mcd,
             wer=0,
             snr=total_snr,
             psnr=total_psnr,
-            loss=total_loss,
+            loss_val=loss_val,
+            loss_train=loss_train,
             pred=before_outs,
             sr=sr,
             grouth_truth=clean_audio_image,

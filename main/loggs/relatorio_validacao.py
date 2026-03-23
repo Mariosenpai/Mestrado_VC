@@ -6,18 +6,20 @@ import os
 import random
 
 class Relatorio_validacao:
-    def __init__(self, mdc, wer, snr, psnr, loss, pred, grouth_truth, audio, audio_noise, audio_pred, sr):
+    def __init__(self, mdc, wer, snr, psnr, loss_val,loss_train, pred, grouth_truth, audio, audio_noise, audio_pred, sr):
         self.mdc = mdc
         self.wer = wer
         self.snr = snr
         self.psnr = psnr
-        self.loss = loss
+        self.loss_val = loss_val
+        self.loss_train = loss_train
         self.pred = pred
         self.grouth_truth = grouth_truth
         self.audio = audio
         self.audio_noise = audio_noise
         self.audio_pred = audio_pred
         self.sr = sr
+
     def gerar_relatorio_visual(
         self,
         output_dir="relatorio_visual",

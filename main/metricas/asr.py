@@ -3,7 +3,6 @@ from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 import torch
 import torchaudio
 import librosa
-from main.pre_processamento.noise import f0_constante
 
 
 # Carregar o áudio
@@ -39,12 +38,12 @@ def _wer_with_one_trans(trans: str, y,sr_y):
 
     return erro
 
-if __name__ == '__main__':
-    x, fs = librosa.load(
-        r'/dataset/2024_AUDIOS_PROJETO_LARINGE/SEM_TRAQUEOSTOMIA/DALLETE_FONO/NATURAL_MP3/2_n.mp3',
-        dtype=np.float64)
-    y = f0_constante(x, fs)
-    referencia = _transcricao(x, fs)
-    hipotese = _transcricao(y, fs)
-    print(referencia)
-    print(hipotese)
+# if __name__ == '__main__':
+#     x, fs = librosa.load(
+#         r'/dataset/2024_AUDIOS_PROJETO_LARINGE/SEM_TRAQUEOSTOMIA/DALLETE_FONO/NATURAL_MP3/2_n.mp3',
+#         dtype=np.float64)
+#     y = f0_constante(x, fs)
+#     referencia = _transcricao(x, fs)
+#     hipotese = _transcricao(y, fs)
+#     print(referencia)
+#     print(hipotese)
