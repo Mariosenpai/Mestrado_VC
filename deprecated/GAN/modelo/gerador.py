@@ -3,8 +3,8 @@ import math
 from torch import nn
 from transformers import ViTConfig, ViTModel
 
-from main.config import image_size
-from main.pre_processamento import ResidualBlock
+from src.config.config import image_size
+from src.main import ResidualBlock
 
 
 class GenerativeNetwork(nn.Module):

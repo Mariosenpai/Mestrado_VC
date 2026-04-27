@@ -6,9 +6,9 @@ from tqdm import tqdm
 
 from deprecated.GAN.fit.validacao import validacao
 
-from main.config import image_size
+from src.config.config import image_size
 
-from main.utils import salva_e_exibir_info
+from src.common.utils import salva_e_exibir_info
 
 
 def train(trainloader, validloader, generator, discriminator, optimizer_gen, optimizer_dis, loss_gen, loss_dis,

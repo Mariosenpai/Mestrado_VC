@@ -5,8 +5,8 @@ from scipy import signal
 from tqdm import tqdm
 
 from deprecated.GAN.fit import skipe_for
-from main.config import image_size
-from main.utils import salva_e_exibir_info
+from src.config.config import image_size
+from src.common.utils import salva_e_exibir_info
 
 
 def validacao(testloader, filename, generator, discriminator, loss_gen, loss_dis, beta=1.0, device='cpu'):

@@ -2,9 +2,8 @@ dataset
 checkpoints
 disciplinas
 output
-model
 .venv
 .idea
 tradutor
-main/arquitetura/seedVC/checkpoints
-main/arquitetura/seedVC/output
+src/main/model/voiceConversion/seedVC/checkpoints
+src/main/model/voiceConversion/seedVC/output
