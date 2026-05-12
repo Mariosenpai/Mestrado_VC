@@ -5,6 +5,7 @@ import warnings
 
 def sr_hifigan() -> int:
     return 22050
+
 def mel_for_audio(mel_spectrogram):
 
     warnings.filterwarnings('ignore')
@@ -28,4 +29,5 @@ if __name__ == "__main__":
     mel = torch.randn(T, F, B).to('cuda')
 
     audio = mel_for_audio(mel)
-    Audio(audio, sr_hifigan())
+    print(audio.shape)
+    # Audio(audio, sr_hifigan())

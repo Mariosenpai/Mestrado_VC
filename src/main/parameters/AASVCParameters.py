@@ -6,7 +6,7 @@ from bibliotecas_externas.seq2seqvc.seq2seq_vc.losses import StochasticDurationP
 
 class Train_parameters:
 
-    def __init__(self, model, data, epochs, name_experiment, vocoder = None):
+    def __init__(self, model, data, epochs, name_experiment):
 
         self.model = model
         self.steps = 0
@@ -15,18 +15,15 @@ class Train_parameters:
         self.device = "cuda"
         self.sampler = {}
 
-        if vocoder is None:
-            self.vocoder = Spectrogram2Waveform(
-                n_fft=1024,
-                n_shift=256,
-                fs=22050,
-                n_mels=80,
-                griffin_lim_iters=32,
-                take_norm_feat=False,
-                # stats=trg_stats,  # stats do target
-            )
-        else:
-            self.vocoder = vocoder
+        self.vocoder = Spectrogram2Waveform(
+            n_fft=1024,
+            n_shift=256,
+            fs=22050,
+            n_mels=80,
+            griffin_lim_iters=32,
+            take_norm_feat=False,
+            # stats=trg_stats,  # stats do target
+        )
 
         self.data_loader = {
             "train": data[0],
