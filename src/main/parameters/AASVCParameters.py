@@ -1,8 +1,8 @@
 import torch
 
-from bibliotecas_externas.seq2seqvc.seq2seq_vc.vocoder.griffin_lim import Spectrogram2Waveform
-from bibliotecas_externas.seq2seqvc.seq2seq_vc.losses import L1Loss, ForwardSumLoss
-from bibliotecas_externas.seq2seqvc.seq2seq_vc.losses import StochasticDurationPredictorLoss
+from moduleExternal.seq2seqvc.seq2seq_vc.vocoder.griffin_lim import Spectrogram2Waveform
+from moduleExternal.seq2seqvc.seq2seq_vc.losses import L1Loss, ForwardSumLoss
+from moduleExternal.seq2seqvc.seq2seq_vc.losses import StochasticDurationPredictorLoss
 
 class Train_parameters:
 

@@ -7,7 +7,7 @@
 import numpy as np
 import torch
 
-from src.main.model.voiceConversion.Seq2SeqVC.models.EncoderDP import DPInputEncoder
+from src.main.model.DuractionInputEncoder import DPInputEncoder
 
 
 class NARVCCollater(object):

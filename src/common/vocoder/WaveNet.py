@@ -10,7 +10,7 @@ import soundfile as sf
 
 def generate_wav(mel_output,output_path, j,sr=22050):
     scaler = StandardScaler()
-    scaler.mean_, scaler.scale_ = np.load("/home/mario/Mestrado_VC/src/common/vocoder/stats.npy")
+    scaler.mean_, scaler.scale_ = np.load(r"C:\Users\USER\Documents\Mestrado\codigo\Mestrado_VC\src\common\vocoder\stats.npy")
     scaler.n_samples_seen_ = 80
 
     mel_spec = np.power(10.0, scaler.inverse_transform(mel_output)).T

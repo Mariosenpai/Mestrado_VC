@@ -4,12 +4,14 @@ from matplotlib import pyplot as plt
 
 
 def vizualizar_spectrogram(spectrogram: torch.Tensor):
-    plt.figure(figsize=(10,12))
+    # Caso não funcione rode esse codigo "%matplotlib inline" no notebook
+    plt.figure(figsize=(10, 12))
     res_mel = spectrogram.detach().cpu().numpy()
     plt.imshow(res_mel, origin='lower')
     plt.xlabel('time')
     plt.ylabel('frequency')
-    _=plt.title('Spectrogram')
+    _ = plt.title('Spectrogram')
+
 
 def audio_duracao(audio: torch.Tensor, sr: int) -> float:
     """
@@ -27,7 +29,8 @@ def audio_duracao(audio: torch.Tensor, sr: int) -> float:
     duration = num_samples / sr
     return duration
 
-def spectograma_3( eletronico: np.array, gerado: np.array, original: np.array , lista_titulos : list[str]):
+
+def spectograma_3(eletronico: np.array, gerado: np.array, original: np.array, lista_titulos: list[str]):
     fig, axes = plt.subplots(1, 3, figsize=(16, 10))
 
     axes[0].imshow(eletronico, cmap='viridis', origin='lower')

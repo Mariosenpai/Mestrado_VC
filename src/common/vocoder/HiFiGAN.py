@@ -6,9 +6,10 @@ import warnings
 def sr_hifigan() -> int:
     return 22050
 
-def mel_for_audio(mel_spectrogram):
+def inference(mel_spectrogram):
 
     warnings.filterwarnings('ignore')
+    denoising_strength = 0.005
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     #print(f'Using {device} for inference')
@@ -28,6 +29,6 @@ if __name__ == "__main__":
     F = 80
     mel = torch.randn(T, F, B).to('cuda')
 
-    audio = mel_for_audio(mel)
+    audio = inference(mel)
     print(audio.shape)
     # Audio(audio, sr_hifigan())

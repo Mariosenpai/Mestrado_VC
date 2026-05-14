@@ -4,6 +4,6 @@ disciplinas
 output
 .venv
 .idea
-tradutor
+/tradutor/
 src/main/model/voiceConversion/seedVC/checkpoints
 src/main/model/voiceConversion/seedVC/output

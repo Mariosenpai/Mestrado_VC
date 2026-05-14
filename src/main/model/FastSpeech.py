@@ -1,6 +1,6 @@
 import yaml
 
-from moduleExternal.seq2seqvc.seq2seq_vc.models import AASVC
+from moduleExternal.seq2seqvc.seq2seq_vc.models import FastSpeechVC
 
 
 def load_config(yaml_path):
@@ -8,12 +8,14 @@ def load_config(yaml_path):
         config = yaml.safe_load(f)
     return config
 
-def seq2seq_AASVC(yaml_path, device) -> AASVC:
+
+def seq2seq_FastSpeech(yaml_path, device) -> FastSpeechVC:
 
     config = load_config(yaml_path)
     model_params = config["model_params"]
 
-    model = AASVC(
-        **model_params,  # aqui está a mágica
+    model = FastSpeechVC(
+        **model_params,
     ).to(device)
+
     return model

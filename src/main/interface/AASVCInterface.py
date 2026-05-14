@@ -8,8 +8,8 @@ from matplotlib import pyplot as plt
 from tqdm.auto import tqdm
 import soundfile as sf
 
-from bibliotecas_externas.seq2seqvc.seq2seq_vc.trainers import AASVCTrainer
-from src.main.model.voiceConversion.Seq2SeqVC.deprected.validation import fix_shape_min
+from moduleExternal.seq2seqvc.seq2seq_vc.trainers import AASVCTrainer
+#from src.main.model.voiceConversion.Seq2SeqVC.deprected.validation import fix_shape_min
 from src.common.loggs.relatorio_validacao import Relatorio_validacao
 from src.common.metricas import metricas_avalicao_model
 from src.common.pre_processamento.noise import f0_constante
@@ -156,7 +156,7 @@ class AASVCTrainerInterface(AASVCTrainer):
                 )
 
                 # alinhar tamanhos
-                grouth_truth, output_inference = fix_shape_min(
+                grouth_truth, output_inference = self.fix_shape_min(
                     grouth_truth.unsqueeze(0),
                     output_inference.unsqueeze(0)
                 )
@@ -249,7 +249,7 @@ class AASVCTrainerInterface(AASVCTrainer):
 
 
 
-    def inference(self, batch):
+    def inference(self, batch, output_path):
         x = torch.Tensor(batch["mel_noise"])
         ground_truth = torch.Tensor(batch["mel"])
         duraction_predict = torch.Tensor(batch["dp_inputs"])
@@ -261,13 +261,13 @@ class AASVCTrainerInterface(AASVCTrainer):
             dp_input=duraction_predict[0],
             use_teacher_forcing=False
         )
-        y = self.vocoder(output_inference.float().detach().numpy(),"/home/mario/Mestrado_VC/experiments/vocoder_inference", 0)
+        y = self.vocoder(output_inference.float().detach().numpy(),output_path, 0)
 
         return y, output_inference
 
     def _vocoder_inference(self,output_inference):
         if self.vocoder is not None:
-            y, sr = self.vocoder(torch.Tensor(output_inference).float())
+            y, sr = self.vocoder.inference(torch.Tensor(output_inference).float())
             return y, sr
 
 

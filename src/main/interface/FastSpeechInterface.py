@@ -14,12 +14,12 @@ import torch
 import wandb
 from tqdm.auto import tqdm
 
-from bibliotecas_externas.seq2seqvc.seq2seq_vc.trainers.base import Trainer
+from moduleExternal.seq2seqvc.seq2seq_vc.trainers.base import Trainer
 
 # set to avoid matplotlib error in CLI environment
 import matplotlib
 
-from bibliotecas_externas.seq2seqvc.seq2seq_vc.utils.model_io import filter_modules, get_partial_state_dict, \
+from moduleExternal.seq2seqvc.seq2seq_vc.utils.model_io import filter_modules, get_partial_state_dict, \
     transfer_verification, print_new_keys
 
 matplotlib.use("Agg")
