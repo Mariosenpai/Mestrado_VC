@@ -53,36 +53,40 @@ class NARVCCollater(object):
         dp_inputs = []
         audios = []
         srs = []
-        ilens= []
-        olens= []
-
-        dp_model = DPInputEncoder()
+        ilens = []
+        olens = []
 
         for b in batch:
-            xs.append(b["mel_noise"])
-            ys.append(b["mel"])
+            # Definir um tamanho padrão
+            x = b["mel_noise"]
+            y = b["mel"]
+
+            if x.shape[1] > y.shape[1]:
+                x = x[:, : y.shape[1]]
+            else:
+                y = y[:, : x.shape[1]]
+
+            xs.append(x)
+            ys.append(y)
 
             # dp_inputs.append(torch.zeros(1337).detach().unsqueeze(0).numpy())
-            dp_inputs.append(dp_model(torch.Tensor(b["mel_noise"])).detach().squeeze(0).numpy()) # (batch, frames, frequencia)
+            dp_inputs.append(b["duraction_input"].squeeze(0))  # (batch, frames, frequencia)
 
             audios.append(b["audio"])
             srs.append(b["sample_rate"])
 
             # get list of lengths (must be tensor for DataParallel)
-            ilens.append(b["mel_mask"])
-            olens.append(b["mel_noise_mask"])
-
-
+            ilens.append(x.shape[1])
+            olens.append(y.shape[1])
 
         ilens = torch.from_numpy(np.array(ilens))
         olens = torch.from_numpy(np.array(olens))
 
-
         dplens = torch.from_numpy(np.array([dp.shape[0] for dp in dp_inputs])).long()
 
         # perform padding and conversion to tensor
-        xs = pad_list([torch.from_numpy(x).float() for x in xs], 0)
-        ys = pad_list([torch.from_numpy(y).float() for y in ys], 0)
+        xs = pad_list([torch.from_numpy(x).float().transpose(1, 0) for x in xs], 0)
+        ys = pad_list([torch.from_numpy(y).float().transpose(1, 0) for y in ys], 0)
         dp_inputs = pad_list(
             [torch.from_numpy(dp_input).float() for dp_input in dp_inputs], 0
         )
@@ -92,6 +96,7 @@ class NARVCCollater(object):
         # print("olens shape:", olens.shape)
         # print(xs)
 
+        assert xs.shape[0] == ys.shape[0] == dp_inputs.shape[0]
 
         items = {
             "xs": xs,
@@ -116,22 +121,20 @@ class NARVCCollater(object):
         #     items["duration_lens"] = duration_lens
         # generate durations automatically
 
-        durations = []
-        duration_lens = []
+        #durations = []
+        #duration_lens = []
 
-        for x in xs:
-            num_frames = x.shape[0]
+        #for x in xs:
+        #    num_frames = x.shape[0]
 
-            d = torch.ones(num_frames, dtype=torch.long)
+        #    d = torch.ones(num_frames, dtype=torch.long)
 
-            durations.append(d)
-            duration_lens.append(len(d))
+        #    durations.append(d)
+        #    duration_lens.append(len(d))
 
-        durations = pad_list(durations, 0)
-        duration_lens = torch.LongTensor(duration_lens)
+        ##duration_lens = torch.LongTensor(duration_lens)
 
-        items["durations"] = durations
-        items["duration_lens"] = duration_lens
-
+        #items["durations"] = durations
+        #items["duration_lens"] = duration_lens
 
         return items

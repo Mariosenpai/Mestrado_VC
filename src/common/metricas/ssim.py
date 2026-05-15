@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-import cv2
+#import cv2
 
 
 def _ssim(image1, image2, K: list =[0.01, 0.03], window_size:int=11, L:int= 255):
@@ -43,28 +43,3 @@ def _ssim(image1, image2, K: list =[0.01, 0.03], window_size:int=11, L:int= 255)
     return ssim_map.mean()
 
 
-if __name__ == "__main__":
-    # opencv image load
-    I1 = cv2.imread(r'C:\Users\USER\Documents\Mestrado\codigo\Mestrado_VC\dataset\image (7).png')
-    I2 = cv2.imread(r'C:\Users\USER\Documents\Mestrado\codigo\Mestrado_VC\dataset\mixed.png')
-    # I2 = cv2.imread('./blur.png')
-    I2 = cv2.resize(I2, I1.shape[0:2])
-    # print(I1.shape, I2.shape) # returns (256,256,3)
-
-    # tensors
-    I1 = torch.from_numpy(np.rollaxis(I1, 2)).float().unsqueeze(0) / 255.0
-    I2 = torch.from_numpy(np.rollaxis(I2, 2)).float().unsqueeze(0) / 255.0
-    # print(I1.size(), I2.size()) # returns torch([1,3,256,256])
-
-    # tensor.autograd.Variable (Automatic differentiation variable)
-    I1 = Variable(I1, requires_grad=True)
-    I2 = Variable(I2, requires_grad=True)
-
-    # default constants
-    K = [0.01, 0.03]
-    L = 255
-    window_size = 11
-
-    ssim_value = _ssim(I1, I2, K, window_size, L)
-
-    print(ssim_value.data)

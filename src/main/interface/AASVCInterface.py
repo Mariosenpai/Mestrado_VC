@@ -19,7 +19,7 @@ from src.common.vocoder.HiFiGAN import sr_hifigan
 
 class AASVCTrainerInterface(AASVCTrainer):
     def __init__(self, steps, epochs, data_loader, sampler, model, vocoder, criterion, optimizer, scheduler, config,
-                 device=torch.device("cpu"), is_test: bool = False):
+                 device=torch.device("cuda"), is_test: bool = False):
         super().__init__(steps, epochs, data_loader, sampler, model, vocoder, criterion, optimizer, scheduler, config,
                          is_test,
                          device)
@@ -196,11 +196,15 @@ class AASVCTrainerInterface(AASVCTrainer):
                     if self.vocoder is not None:
                         if not os.path.exists(os.path.join(dirname, "wav")):
                             os.makedirs(os.path.join(dirname, "wav"), exist_ok=True)
-                        y, sr = self.vocoder.decode(output_inference_gpu.float()) # tem q ser um tensor
+
+                        y = self.vocoder.inference(
+                            output_inference_gpu.float().transpose(1,0).unsqueeze(0))  # tem q ser um tensor
+                        audio = y.squeeze(0).squeeze(0).detach().cpu().numpy().astype("float32")
+
                         sf.write(
                             os.path.join(dirname, "wav", f"{i}_gen.wav"),
-                            y.cpu().numpy(),
-                            sr,
+                            audio,
+                            self.vocoder.sr_hifigan(),
                             "PCM_16",
                         )
 
@@ -216,18 +220,17 @@ class AASVCTrainerInterface(AASVCTrainer):
         avg_snr = total_snr / num_batches
         avg_psnr = total_psnr / num_batches
 
-
         relatorio = self._create_relatorio(
-                outs=output_inference,
-                grouth_truth = grouth_truth,
-                loss_val=avg_loss,
-                loss_train = self.loss_train ,
-                audio=audios[0],
-                idx=i,
-                total_mcd=avg_mcd,
-                total_snr=avg_snr,
-                total_psnr=avg_psnr,
-                sr=srs[0]
+            outs=output_inference,
+            grouth_truth=grouth_truth,
+            loss_val=avg_loss,
+            loss_train=self.loss_train,
+            audio=audios[0],
+            idx=i,
+            total_mcd=avg_mcd,
+            total_snr=avg_snr,
+            total_psnr=avg_psnr,
+            sr=srs[0]
         )
 
         data = {
@@ -247,8 +250,6 @@ class AASVCTrainerInterface(AASVCTrainer):
 
         self.set_relatorio(relatorio)
 
-
-
     def inference(self, batch, output_path):
         x = torch.Tensor(batch["mel_noise"])
         ground_truth = torch.Tensor(batch["mel"])
@@ -261,15 +262,17 @@ class AASVCTrainerInterface(AASVCTrainer):
             dp_input=duraction_predict[0],
             use_teacher_forcing=False
         )
-        y = self.vocoder(output_inference.float().detach().numpy(),output_path, 0)
+        y = self.vocoder(output_inference.float().detach().numpy(), output_path, 0)
 
         return y, output_inference
 
-    def _vocoder_inference(self,output_inference):
+    def _vocoder_inference(self, output_inference):
         if self.vocoder is not None:
-            y, sr = self.vocoder.inference(torch.Tensor(output_inference).float())
-            return y, sr
-
+            y = self.vocoder.inference(
+                torch.Tensor(output_inference).float().transpose(1, 0).unsqueeze(0).cuda()
+            )  # tem q ser um tensor
+            audio = y.squeeze(0).squeeze(0).detach().cpu().numpy().astype("float32")
+            return audio, self.vocoder.sr_hifigan()
 
     def fix_shape_min(self, obj1: torch.Tensor, obj2: torch.Tensor):
         T = min(obj1.size(1), obj2.size(1))
@@ -301,9 +304,10 @@ class AASVCTrainerInterface(AASVCTrainer):
             "steps": self.steps
         }
 
-    def _create_relatorio(self, outs,grouth_truth, loss_val,loss_train, audio, idx, total_mcd, total_snr, total_psnr, sr):
+    def _create_relatorio(self, outs, grouth_truth, loss_val, loss_train, audio, idx, total_mcd, total_snr, total_psnr,
+                          sr):
         def gpu_to_cpu(obj):
-            return obj.cpu().detach().numpy()
+            return torch.tensor(obj).cpu().detach().numpy()
 
         mel_spec_final = torch.Tensor(outs).unsqueeze(0).permute(0, 2, 1)
         clean_audio_image = torch.Tensor(grouth_truth).unsqueeze(0).permute(0, 2, 1)

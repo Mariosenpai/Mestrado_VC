@@ -29,7 +29,7 @@ class Train_parameters:
             self.vocoder = vocoder
 
         self.data_loader = {
-            "protocol": data[0],
+            "train": data[0],
             "dev": data[1],
         }
 

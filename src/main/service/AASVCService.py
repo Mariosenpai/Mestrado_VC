@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import wandb
 
 from src.common.dataloader.CVMPT.CVMPT_offline import CVMPT_offline
 from src.main.interface.AASVCInterface import AASVCTrainerInterface
@@ -14,17 +15,17 @@ from src.main.vocoder.VocoderBase import VocoderBase
 class AASVCService:
     def __init__(self, batch_size, path_dataset: str = "/home/mario/Mestrado_VC/dataset/cv-corpus-mozilla-pt/data/"):
 
-        self.vocoder = HiFiGAN()
-        self.collater = NARVCCollater()
+        wandb.login(key="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")
 
-        self.data = self._define_dataloader(collate_fn=self.collater, batch_size=batch_size, path_dataset=path_dataset)
+        self.vocoder = HiFiGAN()
+        self.collate_fn = NARVCCollater()
+
+        self.data = self._define_dataloader(batch_size=batch_size, path_dataset=path_dataset)
         self.train_loader = self.data[0]
         self.val_loader = self.data[1]
 
-        self.model = self._define_model()
-
     def _define_dataloader(
-            collate_fn,
+            self,
             batch_size: int = 2,
             path_dataset: str = "/home/mario/Mestrado_VC/dataset/cv-corpus-mozilla-pt/data/"
     ) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
@@ -36,27 +37,26 @@ class AASVCService:
             train_set,
             batch_size=batch_size,
             shuffle=True,
-            collate_fn=collate_fn
+            collate_fn=self.collate_fn
         )
 
         valid_loader = torch.utils.data.DataLoader(
             valid_set,
             batch_size=1,
             shuffle=False,
-            collate_fn=collate_fn
+            collate_fn=self.collate_fn
         )
 
         return train_loader, valid_loader
 
     def _define_model(self,
+                      path_model_params: str,
                       device=torch.device("cpu"),
-                      params_model_path: str = r"C:\Users\USER\Documents\Mestrado\codigo\Mestrado_VC\src\config\modelCheckpoint"
-                                               r"\AASVC\aas_vc.melmelmel.v1.yaml"
                       ) -> torch.nn.Module:
         """
         Name_model: AASVC, FASTSPEECH
         """
-        yaml_model = params_model_path
+        yaml_model = path_model_params
         model_seq2seq = seq2seq_AASVC(yaml_model, device)
 
         return model_seq2seq.to(device)
@@ -69,7 +69,7 @@ class AASVCService:
             data_loader=parameters.data_loader,
             sampler=parameters.sampler,
             model=parameters.model,
-            vocoder=parameters.vocoder,
+            vocoder=self.vocoder,
             criterion=parameters.criterion,
             optimizer=parameters.optimizer,
             scheduler=parameters.scheduler,
@@ -98,13 +98,16 @@ class AASVCService:
             device=parameters.device,
         )
 
-    def trainer(self, path_model_checkpoint, epochs, name_experiment, is_test):
-        model = self._define_model()
+    def trainer(self, path_model_checkpoint, path_model_params, epochs, name_experiment, is_test):
+        print("Instanciando o modelo ...")
+        model = self._define_model(device=torch.device("cuda"), path_model_params=path_model_params)
         trainer = self._define_trainer(model, self.data, epochs, name_experiment, is_test=is_test)
 
         if path_model_checkpoint is not None or path_model_checkpoint == "":
+            print("Carregando o modelo pre-treinado ...")
             trainer.load_checkpoint(path_model_checkpoint)
 
+        print("Iniciando o treinamento:")
         trainer.run_wandb(name_experiment, config={"epochs": 5})
 
     def inference(
