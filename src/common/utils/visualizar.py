@@ -30,6 +30,82 @@ def audio_duracao(audio: torch.Tensor, sr: int) -> float:
     return duration
 
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+def salvar_comparacao_mel(
+    mel_entrada,
+    mel_ground_truth,
+    mel_modelo,
+    save_path="comparacao_mel.png"
+):
+    """
+    Cria uma figura com 3 mel espectrogramas lado a lado.
+
+    Args:
+        mel_entrada: numpy array [freq, tempo]
+        mel_ground_truth: numpy array [freq, tempo]
+        mel_modelo: numpy array [freq, tempo]
+        save_path: caminho da imagem final
+    """
+
+    """
+    Salva 3 mel espectrogramas um embaixo do outro.
+    """
+
+    fig, axes = plt.subplots(3, 1, figsize=(15, 10))
+
+    titulos = [
+        "Voz Natural",
+        "Voz Sintética",
+        "Voz Convertida"
+    ]
+
+    mels = [
+        mel_ground_truth,
+        mel_entrada,
+        mel_modelo
+    ]
+
+    imagens = []
+
+    for ax, mel, titulo in zip(axes, mels, titulos):
+
+        img = ax.imshow(
+            mel,
+            aspect='auto',
+            origin='lower',
+            interpolation='none'
+        )
+
+        imagens.append(img)
+
+        ax.set_title(titulo, fontsize=18)
+        ax.set_xlabel("Time",fontsize=14)
+        ax.set_ylabel("Frequencia",fontsize=14)
+
+    # Barra de cor única
+    # fig.colorbar(
+    #     imagens[-1],
+    #     ax=axes,
+    #     orientation='vertical',
+    #     fraction=0.02,
+    #     pad=0.02
+    # )
+
+    plt.tight_layout()
+
+    # Salva com alta qualidade
+    plt.savefig(
+        save_path,
+        dpi=300,
+        bbox_inches='tight'
+    )
+
+    plt.close()
+
+    print(f"Imagem salva em: {save_path}")
+
 def spectograma_3(eletronico: np.array, gerado: np.array, original: np.array, lista_titulos: list[str]):
     fig, axes = plt.subplots(1, 3, figsize=(16, 10))
 

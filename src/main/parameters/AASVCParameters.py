@@ -1,12 +1,13 @@
 import torch
+import yaml
 
 from moduleExternal.seq2seqvc.seq2seq_vc.vocoder.griffin_lim import Spectrogram2Waveform
 from moduleExternal.seq2seqvc.seq2seq_vc.losses import L1Loss, ForwardSumLoss
 from moduleExternal.seq2seqvc.seq2seq_vc.losses import StochasticDurationPredictorLoss
 
-class Train_parameters:
+class AASVCParameters:
 
-    def __init__(self, model, data, epochs, name_experiment):
+    def __init__(self, model, data, epochs, name_experiment, vocoder=None):
 
         self.model = model
         self.steps = 0
@@ -15,15 +16,20 @@ class Train_parameters:
         self.device = "cuda"
         self.sampler = {}
 
-        self.vocoder = Spectrogram2Waveform(
-            n_fft=1024,
-            n_shift=256,
-            fs=22050,
-            n_mels=80,
-            griffin_lim_iters=32,
-            take_norm_feat=False,
-            # stats=trg_stats,  # stats do target
-        )
+        self.yaml_path = r"C:\Users\USER\Documents\Mestrado\codigo\Mestrado_VC\src\config\yaml\aas_vc.melmelmel.v1.yaml"
+
+        if vocoder is None:
+            self.vocoder = Spectrogram2Waveform(
+                n_fft=1024,
+                n_shift=256,
+                fs=22050,
+                n_mels=80,
+                griffin_lim_iters=32,
+                take_norm_feat=False,
+                # stats=trg_stats,  # stats do target
+            )
+        else:
+            self.vocoder = vocoder
 
         self.data_loader = {
             "train": data[0],
@@ -73,3 +79,7 @@ class Train_parameters:
 
         }
 
+    def yaml_paramenters(yaml_path):
+        with open(yaml_path, "r") as f:
+            config = yaml.safe_load(f)
+        return config

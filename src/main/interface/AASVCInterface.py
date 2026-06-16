@@ -14,7 +14,7 @@ from src.common.loggs.relatorio_validacao import Relatorio_validacao
 from src.common.metricas import metricas_avalicao_model
 from src.common.pre_processamento.noise import f0_constante
 from src.common.pre_processamento.spectograma import mel_to_rgb
-from src.common.vocoder.HiFiGAN import sr_hifigan
+
 
 
 class AASVCTrainerInterface(AASVCTrainer):
@@ -74,7 +74,7 @@ class AASVCTrainerInterface(AASVCTrainer):
         # define function for plot prob and att_ws
 
         # check directory
-        #dirname = self._get_and_check_directory()
+        # dirname = self._get_and_check_directory()
         total_mcd = 0
         total_psnr = 0
         total_snr = 0
@@ -198,7 +198,7 @@ class AASVCTrainerInterface(AASVCTrainer):
                             os.makedirs(os.path.join(dirname, "wav"), exist_ok=True)
 
                         y = self.vocoder.inference(
-                            output_inference_gpu.float().transpose(1,0).unsqueeze(0))  # tem q ser um tensor
+                            output_inference_gpu.float().transpose(1, 0).unsqueeze(0))  # tem q ser um tensor
                         audio = y.squeeze(0).squeeze(0).detach().cpu().numpy().astype("float32")
 
                         sf.write(
@@ -250,11 +250,15 @@ class AASVCTrainerInterface(AASVCTrainer):
 
         self.set_relatorio(relatorio)
 
-    def inference(self, batch, output_path):
-        x = torch.Tensor(batch["mel_noise"])
-        ground_truth = torch.Tensor(batch["mel"])
+    def inference(self, batch):
+        x = torch.Tensor(batch["mel_noise"]).transpose(1, 0)
+        ground_truth = torch.Tensor(batch["mel"]).transpose(1, 0)
         duraction_predict = torch.Tensor(batch["dp_inputs"])
 
+        # print(x.shape)
+        # print(ground_truth.shape)
+        # print(duraction_predict.shape)
+        # Entrada esperada torch.Tensor(Time,Frequencia) para o x e ground_truth
         output_inference, d_outs, *other = self.model.inference(
             src_speech=x,
             tgt_speech=ground_truth,
@@ -262,7 +266,8 @@ class AASVCTrainerInterface(AASVCTrainer):
             dp_input=duraction_predict[0],
             use_teacher_forcing=False
         )
-        y = self.vocoder(output_inference.float().detach().numpy(), output_path, 0)
+        output_inference  = output_inference.squeeze(0).float().transpose(1, 0).unsqueeze(0).cuda()
+        y = self.vocoder.inference(output_inference)
 
         return y, output_inference
 
@@ -280,59 +285,7 @@ class AASVCTrainerInterface(AASVCTrainer):
         b2 = obj2[:, :T, :]
         return b1, b2
 
-    def set_relatorio(self, relatorio):
 
-        self.relatorio = {
-            "MDC": relatorio.mdc,
-            "WER": 0,
-            "SNR": relatorio.snr,
-            "PSNR": relatorio.psnr,
-            "loss_train": {
-                "loss_train": relatorio.loss_train,
-                "loss_val": relatorio.loss_val
-            },
-            "mel_exemple": {
-                "ground_truth": wandb.Image(mel_to_rgb(relatorio.grouth_truth)),
-                "prediction": wandb.Image(mel_to_rgb(relatorio.pred)),
-            },
-            "audio_exemple": {
-                "ground_truth": wandb.Audio(relatorio.audio, sample_rate=int(relatorio.sr)),
-                "noise": wandb.Audio(relatorio.audio_noise, sample_rate=int(relatorio.sr)),
-                "prediction": wandb.Audio(relatorio.audio_pred, sample_rate=sr_hifigan()),
-            },
-            "epocas": self.epochs,
-            "steps": self.steps
-        }
-
-    def _create_relatorio(self, outs, grouth_truth, loss_val, loss_train, audio, idx, total_mcd, total_snr, total_psnr,
-                          sr):
-        def gpu_to_cpu(obj):
-            return torch.tensor(obj).cpu().detach().numpy()
-
-        mel_spec_final = torch.Tensor(outs).unsqueeze(0).permute(0, 2, 1)
-        clean_audio_image = torch.Tensor(grouth_truth).unsqueeze(0).permute(0, 2, 1)
-
-        audio_pred, _ = self._vocoder_inference(outs)
-        audio_noise = f0_constante(audio.astype(np.float64), sr=sr)
-
-        audio_pred = gpu_to_cpu(audio_pred)
-        before_outs = gpu_to_cpu(mel_spec_final[0])
-        clean_audio_image = gpu_to_cpu(clean_audio_image[0])
-
-        return Relatorio_validacao(
-            mdc=total_mcd,
-            wer=0,
-            snr=total_snr,
-            psnr=total_psnr,
-            loss_val=loss_val,
-            loss_train=loss_train,
-            pred=before_outs,
-            sr=sr,
-            grouth_truth=clean_audio_image,
-            audio_noise=audio_noise,
-            audio_pred=audio_pred,
-            audio=audio
-        )
 
     def _plot_and_save(self,
                        array, figname, figsize=(6, 4), dpi=150, ref=None, origin="upper"

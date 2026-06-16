@@ -1,34 +1,30 @@
-import torch
-import matplotlib.pyplot as plt
-from IPython.display import Audio
 import warnings
 
-def sr_hifigan() -> int:
-    return 22050
+import torch
 
-def inference(mel_spectrogram):
+from src.common.vocoder.VocoderBase import VocoderBase
 
-    warnings.filterwarnings('ignore')
-    denoising_strength = 0.005
 
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    #print(f'Using {device} for inference')
+class HiFiGAN(VocoderBase):
 
-    hifigan, vocoder_train_setup, denoiser = torch.hub.load('NVIDIA/DeepLearningExamples:torchhub', 'nvidia_hifigan',verbose=False)
+    def __init__(self):
+        VocoderBase.__init__(self)
+        self.hifigan, self.vocoder_train_setup, self.denoiser = torch.hub.load(
+            'NVIDIA/DeepLearningExamples:torchhub',
+            'nvidia_hifigan',
+            verbose=False
+        )
 
-    hifigan.to(device)
+    def sr_vocoder(self) -> int:
+        return 22050
 
-    audio = hifigan(mel_spectrogram).float()
+    def inference(self, mel_spectrogram: torch.Tensor) -> torch.Tensor:
+        warnings.filterwarnings('ignore')
 
-    return audio
+        device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-if __name__ == "__main__":
+        self.hifigan.to(device)
 
-    B = 2
-    T = 260
-    F = 80
-    mel = torch.randn(T, F, B).to('cuda')
+        audio = self.hifigan(mel_spectrogram).float()
 
-    audio = inference(mel)
-    print(audio.shape)
-    # Audio(audio, sr_hifigan())
+        return audio
