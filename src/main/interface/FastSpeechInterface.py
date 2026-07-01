@@ -26,7 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-class NARVCTrainer(Trainer):
+class FastSpeechInterface(Trainer):
 
     def __init__(self, steps, epochs, data_loader, sampler, model, vocoder, criterion, optimizer, scheduler, config,
                  device=torch.device("cpu"), is_test: bool = False):
@@ -89,13 +89,13 @@ class NARVCTrainer(Trainer):
         # =========================
 
     def forward_step(self, batch):
-        xs = batch["xs"]
-        ys = batch["ys"]
+        xs = batch["xs"].cuda()
+        ys = batch["ys"].cuda()
         ilens = batch["ilens"]
         olens = batch["olens"]
-        durations = batch["durations"]
-        duration_lens = batch["duration_lens"]
-        dp_inputs = batch["dp_inputs"]
+        durations = batch["durations"].cuda()
+        duration_lens = batch["durations_lengths"]
+        dp_inputs = batch["dp_inputs"].cuda()
         dplens = batch["dplens"]
 
         # print(xs.shape)
@@ -103,6 +103,8 @@ class NARVCTrainer(Trainer):
 
         print(durations)
         print(durations.shape)
+        print(xs.shape)
+        print(ys.shape)
 
         return self.model(
             xs, ilens, ys, olens, durations=durations, durations_lengths=duration_lens, dp_inputs=dp_inputs, dp_lengths=dplens
@@ -137,9 +139,9 @@ class NARVCTrainer(Trainer):
 
     def _train_step(self, batch):
 
-        batch["durations"] = torch.tensor([10, 10]).unsqueeze(0)
-        batch["duration_lens"] = torch.tensor([10, 10]).unsqueeze(0)
-        print(batch["durations"].shape)
+        # batch["durations"] = torch.tensor([10, 10]).unsqueeze(0)
+        # batch["duration_lens"] = torch.tensor([10, 10]).unsqueeze(0)
+        # print(batch["durations"].shape)
         durations = batch["durations"].to(self.device)
 
         (before_outs, after_outs, d_outs, ilens_, olens_, ys_,) = self.forward_step(batch)

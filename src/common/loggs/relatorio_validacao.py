@@ -6,11 +6,15 @@ import os
 import random
 
 class Relatorio_validacao:
-    def __init__(self, mdc, wer, snr, psnr, loss_val,loss_train, pred, grouth_truth, audio, audio_noise, audio_pred, sr):
+    def __init__(self, mdc, wer, snr, psnr, mosnet, msd,f0_rmse, f0_rmse_log,loss_val,loss_train, pred, grouth_truth, audio, audio_noise, audio_pred, sr):
         self.mdc = mdc
         self.wer = wer
         self.snr = snr
         self.psnr = psnr
+        self.mosnet = mosnet
+        self.msd = msd
+        self.f0_rmse = f0_rmse
+        self.f0_rmse_log = f0_rmse_log
         self.loss_val = loss_val
         self.loss_train = loss_train
         self.pred = pred

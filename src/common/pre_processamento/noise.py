@@ -1,4 +1,5 @@
 import numpy as np
+import pyworld
 import pyworld as pw
 import librosa
 
@@ -19,6 +20,29 @@ def f0_constante(x, sr, f0_floor=25.0, f0_ceil=90.0, frame_period=1.0, speed=1, 
     _y = pw.synthesize(_f0, _sp, _ap, sr, frame_period)
     # librosa.output.write_wav('test/y_without_f0_refinement.wav', _y, fs)
     return _y
+
+
+
+def f0(wavs:list[np.array], sample_rate:int, frame_period=5.0) -> list[np.array]:
+
+    f0s = []
+    for i in range(len(wavs)):
+        wav = wavs[i]
+        wav = wav.astype(np.float64)
+        f0, _ = pyworld.harvest(wav,sample_rate, frame_period=frame_period, f0_floor=71.0, f0_ceil=800.0)
+        f0s.append(f0)
+
+    return f0s
+
+
+def f0_log(wavs:list[np.array], sample_rate:int, frame_period=5.0) -> list[np.array]:
+
+    f0s = f0(wavs, sample_rate, frame_period)
+    log_f0s_concatenate = []
+    for f in f0s:
+        log_f0s_concatenate.append(np.ma.log(f))
+
+    return log_f0s_concatenate
 
 
 if __name__ == '__main__':

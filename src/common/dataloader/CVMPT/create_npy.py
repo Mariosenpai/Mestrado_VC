@@ -208,12 +208,14 @@ def create_dataset_CVMPT_offline(
 
         data = {
             "audio": audio.astype(np.float32),
+            "audio_noise": wave_noise.astype(np.float32),
             "mel": mel.astype(np.float32),
             "mel_noise": mel_noise.astype(np.float32),
             "duraction_input": duraction_input.astype(np.float32),
             "sample_rate": sr_alvo,
             "client_id": client_id_list[i],
             "sentence": sentence_list[i],
+            "id": file_name,
         }
 
         np.save(save_path, data)

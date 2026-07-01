@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 
 from moduleExternal.seq2seqvc.seq2seq_vc.trainers.base import Trainer
 from src.common.loggs.relatorio_validacao import Relatorio_validacao
-from src.common.metricas import metricas_avalicao_model
+from src.common.metricas import  metricas_geral, Metricas
 from src.common.pre_processamento.noise import f0_constante
 from src.common.pre_processamento.spectograma import mel_to_rgb
 from src.main.model.CLDNN import CondUNet, CLDNNEncoder, CLDNN
@@ -141,10 +141,15 @@ class CLDNNInterface(Trainer):
     def _genearete_and_save_intermediate_result(self):
 
         # dirname = self._get_and_check_directory()
-        total_mcd = 0
-        total_psnr = 0
-        total_snr = 0
+        # total_mcd = 0
+        # total_psnr = 0
+        # total_snr = 0
         total_loss = 0
+        # total_mosnet = 0
+        # total_f0_rmse = 0
+        # total_f0_rmse_log = 0
+        # total_msd = 0
+        metrica = Metricas()
 
         dirname = os.path.join(self.config["outdir"], f"predictions\\{self.steps}steps")
         # generate
@@ -167,28 +172,25 @@ class CLDNNInterface(Trainer):
                 loss = self.criterion["mse"](pred, grouth_truth)
 
                 total_loss += loss.item()
-                grouth_truth = grouth_truth.squeeze(0).squeeze(0).detach().cpu().numpy()
-                pred = pred.squeeze(0).squeeze(0).detach().cpu().numpy()
 
-                metrica = metricas_avalicao_model(
-                    grouth_truth,
-                    pred
-                )
-
-                total_mcd += metrica.mcd
-                total_snr += metrica.snr
-                total_psnr += metrica.psnr
+                metrica = self._metricas_avalicao(metrica,grouth_truth, pred, audio, sr)
 
                 if self.is_test and i > self.config["num_save_intermediate_results"]:
                     break
 
+        grouth_truth = grouth_truth.squeeze(0).squeeze(0).detach().cpu().numpy()
+        pred = pred.squeeze(0).squeeze(0).detach().cpu().numpy()
         pred = torch.tensor(pred).transpose(0, 1).detach().cpu().numpy()
 
         num_batches = i + 1
         avg_loss = total_loss / num_batches
-        avg_mcd = total_mcd / num_batches
-        avg_snr = total_snr / num_batches
-        avg_psnr = total_psnr / num_batches
+        avg_mcd = metrica.mcd / num_batches
+        avg_snr = metrica.snr / num_batches
+        avg_psnr = metrica.psnr / num_batches
+        avg_f0_rmse = metrica.f0_rmse / num_batches
+        avg_f0_rmse_log = metrica.f0_rmse_log / num_batches
+        avg_msd = metrica.msd / num_batches
+        avg_mosnet = metrica.mosnet / num_batches
 
         audio = torch.tensor(audio).numpy()
 
@@ -198,10 +200,13 @@ class CLDNNInterface(Trainer):
             loss_val=avg_loss,
             loss_train=self.loss_train,
             audio=audio[0],
-            idx=i,
             total_mcd=avg_mcd,
             total_snr=avg_snr,
             total_psnr=avg_psnr,
+            total_msd=avg_msd,
+            total_mosnet=avg_mosnet,
+            total_f0_rmse=avg_f0_rmse,
+            total_f0_rmse_log=avg_f0_rmse_log,
             sr=sr[0]
         )
 

@@ -11,7 +11,7 @@ import soundfile as sf
 from moduleExternal.seq2seqvc.seq2seq_vc.trainers import AASVCTrainer
 #from src.main.model.voiceConversion.Seq2SeqVC.deprected.validation import fix_shape_min
 from src.common.loggs.relatorio_validacao import Relatorio_validacao
-from src.common.metricas import metricas_avalicao_model
+from src.common.metricas import metricas_geral, Metricas
 from src.common.pre_processamento.noise import f0_constante
 from src.common.pre_processamento.spectograma import mel_to_rgb
 
@@ -75,11 +75,15 @@ class AASVCTrainerInterface(AASVCTrainer):
 
         # check directory
         # dirname = self._get_and_check_directory()
-        total_mcd = 0
-        total_psnr = 0
-        total_snr = 0
+        # total_mcd = 0
+        # total_psnr = 0
+        # total_snr = 0
         total_loss = 0
-
+        # total_mosnet = 0
+        # total_f0_rmse = 0
+        # total_f0_rmse_log = 0
+        # total_msd = 0
+        metrica = Metricas()
         dirname = os.path.join(self.config["outdir"], f"predictions/{self.steps}steps")
         # generate
         # xs, _, ys, _, olens, spembs = tuple(
@@ -165,14 +169,7 @@ class AASVCTrainerInterface(AASVCTrainer):
                 output_inference = self.gpu_to_cpu(output_inference.squeeze(0))
                 grouth_truth = self.gpu_to_cpu(grouth_truth.squeeze(0))
 
-                metrica = metricas_avalicao_model(
-                    grouth_truth,
-                    output_inference
-                )
-
-                total_mcd += metrica.mcd
-                total_snr += metrica.snr
-                total_psnr += metrica.psnr
+                metrica = self._metricas_avalicao(metrica,ys, after_outs, audios,srs)
 
                 # ==========================
                 # Inference
@@ -216,9 +213,13 @@ class AASVCTrainerInterface(AASVCTrainer):
         num_batches = i + 1
 
         avg_loss = total_loss / num_batches
-        avg_mcd = total_mcd / num_batches
-        avg_snr = total_snr / num_batches
-        avg_psnr = total_psnr / num_batches
+        avg_mcd = metrica.mcd / num_batches
+        avg_snr = metrica.snr / num_batches
+        avg_psnr = metrica.psnr / num_batches
+        avg_f0_rmse = metrica.f0_rmse / num_batches
+        avg_f0_rmse_log = metrica.f0_rmse_log / num_batches
+        avg_msd = metrica.msd / num_batches
+        avg_mosnet = metrica.mosnet / num_batches
 
         relatorio = self._create_relatorio(
             outs=output_inference,
@@ -226,10 +227,13 @@ class AASVCTrainerInterface(AASVCTrainer):
             loss_val=avg_loss,
             loss_train=self.loss_train,
             audio=audios[0],
-            idx=i,
             total_mcd=avg_mcd,
             total_snr=avg_snr,
             total_psnr=avg_psnr,
+            total_msd=avg_msd,
+            total_mosnet=avg_mosnet,
+            total_f0_rmse=avg_f0_rmse,
+            total_f0_rmse_log=avg_f0_rmse_log,
             sr=srs[0]
         )
 
