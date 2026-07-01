@@ -17,12 +17,13 @@ from src.main.model.CLDNN import CondUNet, CLDNNEncoder, CLDNN
 
 class CLDNNInterface(Trainer):
 
-    def __init__(self, steps, epochs, data_loader, sampler, model:CLDNN, vocoder, criterion, optimizer, scheduler, config, device,is_test):
+    def __init__(self, steps, epochs, data_loader, sampler, model:CLDNN, vocoder, criterion, optimizer, scheduler, config, device,is_test,mod="base"):
         super().__init__(steps, epochs, data_loader, sampler, model, vocoder, criterion, optimizer, scheduler, config,is_test)
         self.device = device
         self.model = model
         self.loss_train = 0.0
         self.relatorio = None
+        self.mod = mod
 
     def run_wandb(self, project, config):
         """Run training."""
@@ -94,6 +95,7 @@ class CLDNNInterface(Trainer):
         t = torch.rand(B, device=device)  # random times in [0,1]
 
         x_t, groud_truth = self._sample_linear_path(x0, x1, t)
+
         pred = vel_model(x_t, t, cond)  # (B, C, F, T)
 
         target_T = groud_truth.size(-1)  # 259

@@ -10,6 +10,13 @@ class CLDNNController(BaseController):
         super().__init__(batch_size, path_dataset,path_checkpoint, path_model_params)
         self.service = CLDNNService(batch_size=batch_size, path_dataset=path_dataset)
 
+    def set_mod_model(self,mod:str):
+        """
+        :param mod: "base", "encoder_transformer"
+        :return:
+        """
+        self.service.set_mod_model(mod)
+
 if __name__ == "__main__":
 
     ROOT = Path.cwd().resolve().parent.parent.parent
@@ -26,5 +33,5 @@ if __name__ == "__main__":
         path_checkpoint=path_model_checkpoint,
         path_model_params=path_model_params
     )
-
+    controller.set_mod_model("encoder_transformer")
     controller.trainer(epochs,name_experiment, is_test)

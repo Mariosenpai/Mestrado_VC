@@ -13,7 +13,10 @@ class CLDNNService(BaseService):
     def __init__(self, batch_size, path_dataset: str = "/home/mario/Mestrado_VC/dataset/cv-corpus-mozilla-pt/data/"):
         BaseService.__init__(self,batch_size, path_dataset, collete_fn= CLDNNCollater())
         self.vocoder = HiFiGAN()
-        self.model = CLDNN()
+        self.model = CLDNN(mod="base")
+
+    def set_mod_model(self, mod):
+        self.model = CLDNN(mod=mod)
 
     def _define_trainer(self, model, data, epochs, name_experiment, is_test: bool = False) -> CLDNNInterface:
         parameters = CLDNNParameters(model, data, epochs, name_experiment)

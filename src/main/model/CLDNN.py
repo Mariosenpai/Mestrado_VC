@@ -16,8 +16,11 @@ from tqdm.auto import tqdm
 import torch
 import torch.nn.functional as F
 
+from src.main.model.CLDNNModCondUnetEncoderTransforme import CondUnetEncoderTransforme
+
+
 class CLDNN(torch.nn.Module):
-    def __init__(self, *args, **kwargs):
+    def __init__(self,mod, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cldnn = CLDNNEncoder(
             n_mels = 80,
@@ -29,7 +32,10 @@ class CLDNN(torch.nn.Module):
             causal = False,
             conv_pool =None
         )
-        self.condUnet = CondUNet(in_ch=1, base_ch=64, time_emb_dim=128, cond_dim=256)
+        if mod=="base":
+            self.condUnet = CondUNet(in_ch=1, base_ch=64, time_emb_dim=128, cond_dim=256)
+        elif mod=="encoder_transformer":
+            self.condUnet = CondUnetEncoderTransforme(in_ch=1, base_ch=64, time_emb_dim=128, cond_dim=256)
 
 
 class ConvBlock(nn.Module):
