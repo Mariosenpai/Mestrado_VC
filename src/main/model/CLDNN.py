@@ -16,11 +16,12 @@ from tqdm.auto import tqdm
 import torch
 import torch.nn.functional as F
 
-from src.main.model.CLDNNModCondUnetEncoderTransforme import CondUnetEncoderTransforme
+
 
 
 class CLDNN(torch.nn.Module):
-    def __init__(self,mod, *args, **kwargs):
+
+    def __init__(self,use_transformer=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cldnn = CLDNNEncoder(
             n_mels = 80,
@@ -30,12 +31,12 @@ class CLDNN(torch.nn.Module):
             proj_dim = 256,
             bidirectional = True,
             causal = False,
-            conv_pool =None
+            conv_pool =None,
+            use_transformer=use_transformer,
         )
-        if mod=="base":
-            self.condUnet = CondUNet(in_ch=1, base_ch=64, time_emb_dim=128, cond_dim=256)
-        elif mod=="encoder_transformer":
-            self.condUnet = CondUnetEncoderTransforme(in_ch=1, base_ch=64, time_emb_dim=128, cond_dim=256)
+
+        self.condUnet = CondUNet(in_ch=1, base_ch=64, time_emb_dim=128, cond_dim=256)
+
 
 
 class ConvBlock(nn.Module):
@@ -88,7 +89,8 @@ class CLDNNEncoder(nn.Module):
                  bidirectional: bool = True,
                  causal: bool = False,
                  conv_pool:
-                 Optional[list] = None):
+                 Optional[list] = None,
+                 use_transformer:bool =False):
         super().__init__()
 
         assert len(conv_channels) >= 1, "conv_channels must contain at least one element"
@@ -142,6 +144,8 @@ class CLDNNEncoder(nn.Module):
         self._causal = causal
         self._built = False
 
+        self.use_transformer = use_transformer
+
     def _build_rnn(self, feat_dim):
         """Build the GRU module when feat_dim (input dim to RNN) is known."""
         self._rnn = nn.GRU(input_size=feat_dim,
@@ -149,6 +153,13 @@ class CLDNNEncoder(nn.Module):
                            num_layers=self.gru_layers,
                            batch_first=True,
                            bidirectional=self._gru_bidirectional).to("cuda")
+        self._built = True
+
+    def _build_encoder_transformer(self, feat_dim):
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=feat_dim, nhead=8).to("cuda")
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.gru_layers).to("cuda")
+        self.densa_trans = nn.Linear(feat_dim, 512)
+
         self._built = True
 
     def forward(self, mel: torch.Tensor):
@@ -179,11 +190,21 @@ class CLDNNEncoder(nn.Module):
 
         # lazy build RNN if needed
         if not self._built:
-            self._build_rnn(feat_dim)
+
+            if self.use_transformer:
+                self._build_encoder_transformer(feat_dim)
+            else:
+                self._build_rnn(feat_dim)
 
         # RNN forward
         # If causal==True and model was intended for streaming, we already set uni-directional.
-        rnn_out, _ = self._rnn(feat)  # (B, T_out, rnn_out_dim)
+
+        if self.use_transformer:
+            rnn_out = self.transformer_encoder(feat)
+            rnn_out = self.densa_trans(rnn_out)
+        else:
+            rnn_out, _ = self._rnn(feat)  # (B, T_out, rnn_out_dim)
+
         # project per-frame to proj_dim
         emb = self.proj(rnn_out)  # (B, T_out, proj_dim)
 

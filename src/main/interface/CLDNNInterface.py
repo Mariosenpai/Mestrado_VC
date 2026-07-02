@@ -23,7 +23,6 @@ class CLDNNInterface(Trainer):
         self.model = model
         self.loss_train = 0.0
         self.relatorio = None
-        self.mod = mod
 
     def run_wandb(self, project, config):
         """Run training."""
@@ -65,7 +64,7 @@ class CLDNNInterface(Trainer):
         self._check_train_finish()
 
 
-    def _generate_mel(self,cldnn, mel_noise, mel, vel_model: CondUNet, device):
+    def _generate_mel(self,cldnn, mel_noise, mel, vel_model, device):
         '''
         Gera o mel espectograma a partir do mel_noise
 
@@ -171,9 +170,17 @@ class CLDNNInterface(Trainer):
                 vel_model = self.model.condUnet
 
                 pred, grouth_truth = self._generate_mel(cldnn, mel, mel_noise, vel_model, self.device)
+
+                # print("pred:",pred.shape)
+                # print("grouth_truth:",grouth_truth.shape)
+
                 loss = self.criterion["mse"](pred, grouth_truth)
 
                 total_loss += loss.item()
+
+                if pred.dim() == 4:
+                    pred = pred.squeeze(0).detach().cpu().numpy()
+                    grouth_truth = grouth_truth.squeeze(0).detach().cpu().numpy()
 
                 metrica = self._metricas_avalicao(metrica,grouth_truth, pred, audio, sr)
 
