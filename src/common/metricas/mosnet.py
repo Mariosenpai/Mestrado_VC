@@ -65,56 +65,65 @@ class CNN_BLSTM(object):
 
         return model
 
-FS = 16000
-FFT_SIZE = 512
-SGRAM_DIM = FFT_SIZE // 2 + 1
-HOP_LENGTH=256
-WIN_LENGTH=512
 
-def get_spectrograms(sound_file, fs=FS, fft_size=FFT_SIZE):
-    # Loading sound file
-    y, _ = librosa.load(sound_file, sr=fs)  # or set sr to hp.sr.
+class Mosnet:
 
-    # Preemphasis
-    # y = np.append(y[0], y[1:] - PREEMPHASIS * y[:-1])
+    def __init__(self):
 
-    # stft. D: (1+n_fft//2, T)
-    linear = librosa.stft(y=y,
-                          n_fft=fft_size,
-                          hop_length=HOP_LENGTH,
-                          win_length=WIN_LENGTH,
-                          window=scipy.signal.windows.hamming,
-                          )
+        self.model = self.load_model()
 
-    # magnitude spectrogram
-    mag = np.abs(linear)  # (1+n_fft/2, T)
+        self.FS = 16000
+        self.FFT_SIZE = 512
+        self.SGRAM_DIM = self.FFT_SIZE // 2 + 1
+        self.HOP_LENGTH=256
+        self.WIN_LENGTH=512
 
-    # shape in (T, 1+n_fft/2)
-    return np.transpose(mag.astype(np.float32))
+    def get_spectrograms(self, sound_file):
+        fft_size = self.FFT_SIZE
+        fs = self.FS
+        # Loading sound file
+        # y, _ = librosa.load(sound_file, sr=fs)  # or set sr to hp.sr.
+        y = sound_file
+        # Preemphasis
+        # y = np.append(y[0], y[1:] - PREEMPHASIS * y[:-1])
+
+        # stft. D: (1+n_fft//2, T)
+        linear = librosa.stft(y=y,
+                              n_fft=fft_size,
+                              hop_length=self.HOP_LENGTH,
+                              win_length=self.WIN_LENGTH,
+                              window=scipy.signal.windows.hamming,
+                              )
+
+        # magnitude spectrogram
+        mag = np.abs(linear)  # (1+n_fft/2, T)
+
+        # shape in (T, 1+n_fft/2)
+        return np.transpose(mag.astype(np.float32))
 
 
-def load_model() -> nn.Module:
-    MOSNet = CNN_BLSTM()
-    model = MOSNet.build()
-    ROOT = Path(__file__).resolve().parent.parent.parent.parent
-    checkpoint = ROOT / "src" / "common" / "metricas" / "checkpoint_model_mos" / "mosnet_checkpoint.h5"
-    model.load_weights(checkpoint)
-    return model
+    def load_model(self) -> nn.Module:
+        MOSNet = CNN_BLSTM()
+        model = MOSNet.build()
+        ROOT = Path(__file__).resolve().parent.parent.parent.parent
+        checkpoint = ROOT / "src" / "common" / "metricas" / "checkpoint_model_mos" / "mosnet_checkpoint.h5"
+        model.load_weights(checkpoint)
+        return model
 
-def preprocesse_melgram(mag_sgram):
-    timestep = mag_sgram.shape[0]
-    mag_sgram = np.reshape(mag_sgram, (1, timestep, SGRAM_DIM))
-    return mag_sgram
+    def preprocesse_melgram(self, mag_sgram):
+        timestep = mag_sgram.shape[0]
+        mag_sgram = np.reshape(mag_sgram, (1, timestep, self.SGRAM_DIM))
+        return mag_sgram
 
-def _mosnet(audio) -> float:
+    def inference(self,audio) -> float:
 
-    model = load_model()
-    mag_sgram = get_spectrograms(audio)
-    mag_sgram = preprocesse_melgram(mag_sgram)
+        model = self.model
+        mag_sgram = self.get_spectrograms(audio)
+        mag_sgram = self.preprocesse_melgram(mag_sgram)
 
-    Average_score, _ = model.predict(mag_sgram, verbose=0, batch_size=1)
+        Average_score, _ = model.predict(mag_sgram, verbose=0, batch_size=1)
 
-    return Average_score[0][0]
+        return Average_score[0][0]
 
 
 if __name__ == "__main__":

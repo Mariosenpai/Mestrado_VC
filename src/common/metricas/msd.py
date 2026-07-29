@@ -48,8 +48,8 @@ def _msd(wavs_sythn:list[np.ndarray], wavs_org:list[np.array],sample_rate:float)
 
     new =0
     for i in range(24):
-        a = ms_into2out_orig[i,:].T
-        b = ms_into2out_synth[i,:].T
+        a = ms_into2out_orig[i]
+        b = ms_into2out_synth[i]
         diff = np.mean(np.absolute(a-b))
         diff=(np.inner(diff,diff))
         new+=diff

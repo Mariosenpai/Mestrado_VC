@@ -24,6 +24,8 @@ class CLDNNInterface(Trainer):
         self.loss_train = 0.0
         self.relatorio = None
 
+    def get_device(self):
+        return self.device
     def run_wandb(self, project, config):
         """Run training."""
         self.backward_steps = 0
@@ -38,7 +40,7 @@ class CLDNNInterface(Trainer):
 
                 run.log(self.relatorio)
                 # check whether training is finished
-                if self.finish_train:
+                if self.finish_train or self.is_test:
                     break
 
         self.tqdm.close()
@@ -50,7 +52,7 @@ class CLDNNInterface(Trainer):
         cldnn = self.model.cldnn
         vel_model = self.model.condUnet
 
-        pred, groud_truth = self._generate_mel(cldnn, mel, mel_noise, vel_model, self.device)
+        pred, groud_truth = self._get_training_type(cldnn,mel, mel_noise,vel_model)
 
         loss = self.criterion["mse"](pred, groud_truth)
         self.optimizer.zero_grad()
@@ -63,6 +65,52 @@ class CLDNNInterface(Trainer):
         self.tqdm.update(1)
         self._check_train_finish()
 
+    def _train_flow(self, cldnn, mel, mel_noise):
+        flow = cldnn
+
+        x_1 = mel
+        x_0 = mel_noise
+        t = torch.rand(x_1.shape[0], 1, 1, device=x_1.device)
+
+        x_t = (1-t) * x_0 + t * x_1
+        dx_t = x_1 - x_0
+        t = t.expand(-1, x_t.shape[1], 1)
+
+        pred = flow(mel.to(self.device), x_t.to(self.device), t.to(self.device))
+        groud_truth = dx_t.to(self.device)
+
+        return pred.to(self.device) , groud_truth.to(self.device)
+
+
+    def _inference_flow(self,x , n_steps):
+        time_steps = torch.linspace(0, 1.0, n_steps + 1).to(self.device)
+        x = x.to(self.device)
+        for i in range(n_steps):
+            x = self.model.cldnn.step(x, time_steps[i], time_steps[i + 1])
+
+        return x
+
+    def get_inference_type(self,**kwargs ):
+
+        if self.model.cldnn.use_flow_matching:
+            pred = self._inference_flow(x= kwargs["mel_noise"],n_steps=kwargs['n_steps'])
+        else:
+            pred, _ = self._generate_mel(
+                cldnn=self.model.cldnn,
+                mel=kwargs["mel"],
+                mel_noise=kwargs["mel_noise"],
+                vel_model=self.model.condUnet,
+                device=self.device,
+            )
+        return pred
+
+
+    def _get_training_type(self, cldnn, mel, mel_noise, vel_model=None):
+        if self.model.cldnn.use_flow_matching:
+            pred, groud_truth = self._train_flow(cldnn, mel, mel_noise)
+        else:
+            pred, groud_truth = self._generate_mel(cldnn, mel, mel_noise, vel_model, self.device)
+        return pred, groud_truth
 
     def _generate_mel(self,cldnn, mel_noise, mel, vel_model, device):
         '''
@@ -83,7 +131,7 @@ class CLDNNInterface(Trainer):
         mel_target = mel.to(device)
 
         # get cond embedding from CLDNN (per-frame or global)
-        cond = cldnn(mel_in)  # (B, T_cond, cond_dim)
+        cond = cldnn(mel_in, None,None)  # (B, T_cond, cond_dim)
         # for simplicity make cond per-utterance via mean (FiLM handles this)
         # but cond can be per-frame if you upsample/align it
         # convert mel_target to image shape (B, C=1, F, T)
@@ -169,27 +217,32 @@ class CLDNNInterface(Trainer):
                 cldnn = self.model.cldnn
                 vel_model = self.model.condUnet
 
-                pred, grouth_truth = self._generate_mel(cldnn, mel, mel_noise, vel_model, self.device)
-
-                # print("pred:",pred.shape)
-                # print("grouth_truth:",grouth_truth.shape)
+                pred, grouth_truth = self._get_training_type(cldnn, mel, mel_noise, vel_model)
 
                 loss = self.criterion["mse"](pred, grouth_truth)
 
                 total_loss += loss.item()
 
+                grouth_truth = mel
+
+                mel_noise = torch.tensor(mel_noise).to(self.device)
+                mel = torch.tensor(mel).to(self.device)
+                pred_infe = self.get_inference_type(mel_noise=mel_noise, mel=mel, n_steps=8)
+
                 if pred.dim() == 4:
-                    pred = pred.squeeze(0).detach().cpu().numpy()
                     grouth_truth = grouth_truth.squeeze(0).detach().cpu().numpy()
 
-                metrica = self._metricas_avalicao(metrica,grouth_truth, pred, audio, sr)
+                pred_infe = pred_infe.detach().cpu().numpy()
+                grouth_truth = grouth_truth.detach().cpu().numpy()
+
+                metrica = self._metricas_avalicao(metrica,grouth_truth, pred_infe, audio, sr)
 
                 if self.is_test and i > self.config["num_save_intermediate_results"]:
                     break
 
-        grouth_truth = grouth_truth.squeeze(0).squeeze(0).detach().cpu().numpy()
-        pred = pred.squeeze(0).squeeze(0).detach().cpu().numpy()
-        pred = torch.tensor(pred).transpose(0, 1).detach().cpu().numpy()
+        grouth_truth = grouth_truth.squeeze(0)
+
+        pred = torch.tensor(pred_infe).transpose(1,2).detach().cpu().numpy()
 
         num_batches = i + 1
         avg_loss = total_loss / num_batches
@@ -224,6 +277,10 @@ class CLDNNInterface(Trainer):
             "mdc": float(relatorio.mdc),
             "snr": relatorio.snr.float(),
             "psnr": relatorio.psnr,
+            "mosnet": relatorio.mosnet,
+            "f0_rmse": relatorio.f0_rmse,
+            "f0_rmse_log": relatorio.f0_rmse_log,
+            "msd": relatorio.msd,
             "loss_train": self.loss_train,
             "loss_val": avg_loss,
         }

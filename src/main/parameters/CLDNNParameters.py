@@ -6,11 +6,11 @@ from argon2 import Parameters
 
 class CLDNNParameters:
 
-    def __init__(self, model, data, epochs, name_experiment, vocoder=None):
+    def __init__(self, model, data, epochs, name_experiment, vocoder=None, device='cuda'):
 
         self.model = model
         self.steps= 0
-        self.device = "cuda"
+        self.device = device
         self.sampler = {}
         self.data = data
         self.epochs = epochs

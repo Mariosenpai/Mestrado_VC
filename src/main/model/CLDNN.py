@@ -2,7 +2,7 @@ import math
 from typing import Optional, Tuple
 
 import torch
-from torch import nn
+from torch import nn, Tensor
 
 # cldnn_flowmatching.py
 import math
@@ -21,7 +21,7 @@ import torch.nn.functional as F
 
 class CLDNN(torch.nn.Module):
 
-    def __init__(self,use_transformer=False, *args, **kwargs):
+    def __init__(self,use_transformer=False, use_flow_matching=False,device="cuda",*args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cldnn = CLDNNEncoder(
             n_mels = 80,
@@ -33,11 +33,12 @@ class CLDNN(torch.nn.Module):
             causal = False,
             conv_pool =None,
             use_transformer=use_transformer,
+            use_flow_matching=use_flow_matching,
+            device=device,
         )
 
+
         self.condUnet = CondUNet(in_ch=1, base_ch=64, time_emb_dim=128, cond_dim=256)
-
-
 
 class ConvBlock(nn.Module):
     """
@@ -90,7 +91,10 @@ class CLDNNEncoder(nn.Module):
                  causal: bool = False,
                  conv_pool:
                  Optional[list] = None,
-                 use_transformer:bool =False):
+                 use_transformer:bool =False,
+                 use_flow_matching: bool =False,
+                 device="cuda"
+                 ):
         super().__init__()
 
         assert len(conv_channels) >= 1, "conv_channels must contain at least one element"
@@ -99,6 +103,21 @@ class CLDNNEncoder(nn.Module):
         self.proj_dim = proj_dim
         self.bidirectional = bidirectional and (not causal)
         self.rnn_directions = 2 if self.bidirectional else 1
+        feat_dim = conv_channels[-1] * n_mels
+        self._built = False
+        self.use_transformer = use_transformer
+        self.use_flow_matching = use_flow_matching
+        self._build_flow_matching = True
+        # store flags for lazy rnn creation
+        self._gru_bidirectional = self.bidirectional
+        self._causal = causal
+        # Bi-GRU stack
+        rnn_input_size = conv_channels[-1] * n_mels  # placeholder; we'll adapt in forward
+        # create GRU but with input_size set later via a small wrapper if needed.
+        self.gru_hidden = gru_hidden
+        self.gru_layers = gru_layers
+        self.device = device
+
 
         # Build conv stack: first block with 5x5, second with 3x3 (common pattern)
         # conv_pool: list of booleans whether to apply pooling after each block
@@ -116,20 +135,16 @@ class CLDNNEncoder(nn.Module):
                                          use_pool=use_pool, pool_kernel=pool_kernel))
             in_ch = out_ch
         self.conv_stack = nn.Sequential(*conv_blocks)
+        self.build_rnn(feat_dim)
 
         # after convs we will collapse frequency+channel into feature dim for RNN
         # but frequency dimension depends on pooling/stride; compute dynamically in forward.
 
-        # Bi-GRU stack
-        rnn_input_size = conv_channels[-1] * n_mels  # placeholder; we'll adapt in forward
-        # create GRU but with input_size set later via a small wrapper if needed.
-        self.gru_hidden = gru_hidden
-        self.gru_layers = gru_layers
         # We'll instantiate a GRU with a dummy input size now and replace in forward if mismatch
         # However easier: create an nn.GRU in __init__ with input_size = conv_channels[-1] * n_mels
         # and allow user to ensure pooling choices keep freq dimension stable.
         # To avoid hard assumptions, we will create RNN lazily in first forward pass.
-        self._rnn = None
+        # self._rnn = None
 
         # Projection MLP: two FC layers mapping RNN hidden dim -> proj_dim
         rnn_out_dim = self.rnn_directions * self.gru_hidden
@@ -138,13 +153,10 @@ class CLDNNEncoder(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(proj_dim, proj_dim)
         )
+        self.time_embedding = TimeEmbedding(rnn_input_size) # tem que ser 5120 pode usar uma proj depois do tb
 
-        # store flags for lazy rnn creation
-        self._gru_bidirectional = self.bidirectional
-        self._causal = causal
-        self._built = False
 
-        self.use_transformer = use_transformer
+
 
     def _build_rnn(self, feat_dim):
         """Build the GRU module when feat_dim (input dim to RNN) is known."""
@@ -152,21 +164,22 @@ class CLDNNEncoder(nn.Module):
                            hidden_size=self.gru_hidden,
                            num_layers=self.gru_layers,
                            batch_first=True,
-                           bidirectional=self._gru_bidirectional).to("cuda")
+                           bidirectional=self._gru_bidirectional).to(self.device)
         self._built = True
 
     def _build_encoder_transformer(self, feat_dim):
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=feat_dim, nhead=8).to("cuda")
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.gru_layers).to("cuda")
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=feat_dim, nhead=8).to(self.device)
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=self.gru_layers).to(self.device)
         self.densa_trans = nn.Linear(feat_dim, 512)
 
         self._built = True
 
-    def forward(self, mel: torch.Tensor):
+
+    def __forward_conv(self, mel):
         """
-        mel: tensor (B, T, F) OR (B, 1, F, T). We accept (B, T, F) as common.
-        Returns: embeddings (B, T_out, proj_dim)
-        """
+               mel: tensor (B, T, F) OR (B, 1, F, T). We accept (B, T, F) as common.
+               Returns: embeddings (B, T_out, proj_dim)
+               """
         # Normalize input shape to (B, 1, F, T)
         if mel.dim() == 3:
             # (B, T, F) -> (B, 1, F, T)
@@ -187,14 +200,18 @@ class CLDNNEncoder(nn.Module):
         feat = x.permute(0, 3, 1, 2).contiguous()  # (B, T_out, C, F)
         feat = feat.view(B, Tp, Cc * Fp)  # (B, T_out, feat_dim)
         feat_dim = Cc * Fp
+        return feat, feat_dim
 
-        # lazy build RNN if needed
+    def build_rnn(self,feat_dim ):
         if not self._built:
 
             if self.use_transformer:
                 self._build_encoder_transformer(feat_dim)
             else:
                 self._build_rnn(feat_dim)
+
+    def __forward_rnn(self, feat):
+        # lazy build RNN if needed
 
         # RNN forward
         # If causal==True and model was intended for streaming, we already set uni-directional.
@@ -205,10 +222,45 @@ class CLDNNEncoder(nn.Module):
         else:
             rnn_out, _ = self._rnn(feat)  # (B, T_out, rnn_out_dim)
 
+        return rnn_out
+
+    def __forward_cldnn(self, mel):
+
+        # Conv
+        feat, feat_dim = self.__forward_conv(mel)
+
+        rnn_out = self.__forward_rnn(feat)
         # project per-frame to proj_dim
         emb = self.proj(rnn_out)  # (B, T_out, proj_dim)
 
         return emb
+
+    def __forward_flow_matching(self, x_t, t):
+
+        feat, feat_dim = self.__forward_conv(x_t)
+
+        t_emb = self.time_embedding(t.squeeze(-1).squeeze(-1))
+        feat = feat + t_emb
+
+        rnn_out = self.__forward_rnn(feat)
+        pred = self.proj(rnn_out)
+
+        target_T = 80
+        pred = pred[..., :target_T]
+
+        return pred
+
+    def step(self, x_t: Tensor, t_start: Tensor, t_end: Tensor) -> Tensor:
+        t_start = t_start.view(1, 1).expand(x_t.shape[0], 1)
+        return x_t + (t_end - t_start) * self.__forward_flow_matching(x_t + self.__forward_flow_matching(x_t, t_start) * (t_end - t_start) / 2, t_start + (t_end - t_start) / 2)
+
+    def forward(self, mel: torch.Tensor, x_t,t):
+
+        if self.use_flow_matching:
+            return self.__forward_flow_matching(x_t,t)
+        else:
+            return self.__forward_cldnn(mel)
+
 
 
 # ---------------------------

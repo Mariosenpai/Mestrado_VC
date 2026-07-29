@@ -3,14 +3,14 @@ import torch
 from matplotlib import pyplot as plt
 
 
-def vizualizar_spectrogram(spectrogram: torch.Tensor):
+def vizualizar_spectrogram(spectrogram: torch.Tensor, name_spectrogram: str ="Spectrogram") -> None:
     # Caso não funcione rode esse codigo "%matplotlib inline" no notebook
     plt.figure(figsize=(10, 12))
     res_mel = spectrogram.detach().cpu().numpy()
     plt.imshow(res_mel, origin='lower')
     plt.xlabel('time')
     plt.ylabel('frequency')
-    _ = plt.title('Spectrogram')
+    _ = plt.title(name_spectrogram)
 
 
 def audio_duracao(audio: torch.Tensor, sr: int) -> float:

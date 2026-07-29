@@ -19,17 +19,16 @@ class CondUnetEncoderTransforme(CondUNet):
              returns: dx_dt (same shape as x)
              """
         # initial
-        # x1 = self.inc(x)  # (B, base, F, T)
-        # d1 = self.down1(x1)  # (B, base*2, F, T/2)
-        # d2 = self.down2(d1)  # (B, base*4, F, T/4)
-        # mid = self.mid(d2)
+        x1 = self.inc(x)  # (B, base, F, T)
+        d1 = self.down1(x1)  # (B, base*2, F, T/2)
+        d2 = self.down2(d1)  # (B, base*4, F, T/4)
+        mid = self.mid(d2)
 
-        encoder = self.transformer_encoder(x) # <- Modificação
 
         # time conditioning injected into mid
         t_emb = self.time_emb(t)  # (B, time_emb_dim)
         t_fc = self.time_fc(t_emb).unsqueeze(-1).unsqueeze(-1)  # (B, base*4, 1,1)
-        mid = encoder + t_fc
+        mid = mid + t_fc
 
         # FiLM at mid
         s, sh = self.film1(cond)

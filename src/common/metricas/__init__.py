@@ -5,7 +5,7 @@ from src.common.metricas.asr import _wer, _wer_with_one_trans
 from src.common.metricas.f0_rmse import _f0_rmse, _f0_rmse_log
 from src.common.metricas.lsd_mel import lsd_mel
 from src.common.metricas.mcd import _mcd
-from src.common.metricas.mosnet import _mosnet
+from src.common.metricas.mosnet import Mosnet
 from src.common.metricas.msd import _msd
 from src.common.metricas.ssim import _ssim
 from src.common.metricas.psnr import _PSNR
@@ -24,11 +24,13 @@ class Metricas:
         self.msd = msd
         self.mosnet = mosnet
 
-    def update(self, mel_clean, wav_clean, mel_noise, wav_noise, sample_rate:int):
+        self.model_mosnet = Mosnet()
 
-        f0_rmse_log, f0_rmse_log_log, msd_log = metricas_para_audio(wav_clean, wav_noise, sample_rate)
-        mcd_log, snr_log, psnr_log = metricas_para_mel(mel_clean, mel_noise)
-        mos_log = metricas_naturalidade_mos(wav_clean)
+    def update(self, mel_org, wav_org, mel_clean, wav_clean, sample_rate:int):
+
+        f0_rmse_log, f0_rmse_log_log, msd_log = metricas_para_audio(wav_org, wav_clean, sample_rate)
+        mcd_log, snr_log, psnr_log = metricas_para_mel(mel_org, mel_clean)
+        mos_log = metricas_naturalidade_mos(self.model_mosnet, wav_clean)
 
         self.mcd += mcd_log
         self.snr += snr_log
@@ -56,8 +58,8 @@ def metricas_para_audio(wav_clean:list[np.array], wav_noise:list[np.array], samp
 
     return f0_rmse_result, f0_rmse_log_result, msd_result
 
-def metricas_naturalidade_mos(wav):
-    mos_log = mosnet(wav)
+def metricas_naturalidade_mos(model_mosnet,wav):
+    mos_log = model_mosnet.inference(wav)
     return mos_log
 
 def metricas_geral(mel_clean, wav_clean, mel_noise, wav_noise, sample_rate:int) -> Metricas:
@@ -77,7 +79,7 @@ def metricas_geral(mel_clean, wav_clean, mel_noise, wav_noise, sample_rate:int) 
 
 
 def mosnet(wav) -> float:
-    return _mosnet(wav)
+    return  Mosnet().inference(wav)
 def msd(x:list[np.array], y:list[np.array], sample_rate) -> float:
     return _msd(x, y, sample_rate)
 def f0_rmse(x:list[np.array],y:list[np.array],sample_rate:int):
