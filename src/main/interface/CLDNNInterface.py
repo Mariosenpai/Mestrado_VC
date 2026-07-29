@@ -1,5 +1,5 @@
 import os
-from typing import Tuple
+from typing import Tuple, Union
 
 from torch.nn import functional as F
 import numpy as np
@@ -55,6 +55,7 @@ class CLDNNInterface(Trainer):
         pred, groud_truth = self._get_training_type(cldnn,mel, mel_noise,vel_model)
 
         loss = self.criterion["mse"](pred, groud_truth)
+
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -102,14 +103,73 @@ class CLDNNInterface(Trainer):
                 vel_model=self.model.condUnet,
                 device=self.device,
             )
+        pred = self.__transforme_torch_tensor(pred)
+
         return pred
 
+    def __transforme_torch_tensor(self, array) -> torch.Tensor:
+        return torch.Tensor(array).to(self.device)
 
-    def _get_training_type(self, cldnn, mel, mel_noise, vel_model=None):
+    def __prepare_mel(
+            self,
+            array: Union[torch.Tensor, np.ndarray]
+    ) -> Union[torch.Tensor, np.ndarray]:
+
+        # =========================
+        # PyTorch Tensor
+        # =========================
+        if isinstance(array, torch.Tensor):
+
+            # (B, 1, 80, T) -> (B, 80, T)
+            if array.dim() == 4:
+                if array.shape[1] != 1:
+                    raise ValueError(
+                        f"Esperado canal com dimensão 1, "
+                        f"recebido: {array.shape}"
+                    )
+
+                array = array.squeeze(dim=1)
+
+            # (B, T, 80) -> (B, 80, T)
+            if array.dim() == 3 and array.shape[2] == 80:
+                array = array.permute(0, 2, 1)
+
+        # =========================
+        # NumPy Array
+        # =========================
+        elif isinstance(array, np.ndarray):
+
+            # (B, 1, 80, T) -> (B, 80, T)
+            if array.ndim == 4:
+                if array.shape[1] != 1:
+                    raise ValueError(
+                        f"Esperado canal com dimensão 1, "
+                        f"recebido: {array.shape}"
+                    )
+
+                array = np.squeeze(array, axis=1)
+
+            # (B, T, 80) -> (B, 80, T)
+            if array.ndim == 3 and array.shape[2] == 80:
+                array = np.transpose(array, (0, 2, 1))
+
+        else:
+            raise TypeError(
+                f"Tipo não suportado: {type(array)}. "
+                "Esperado torch.Tensor ou numpy.ndarray."
+            )
+
+        return array
+
+    def _get_training_type(self, cldnn, mel, mel_noise, vel_model=None) -> tuple[torch.tensor, torch.tensor]:
         if self.model.cldnn.use_flow_matching:
             pred, groud_truth = self._train_flow(cldnn, mel, mel_noise)
         else:
             pred, groud_truth = self._generate_mel(cldnn, mel, mel_noise, vel_model, self.device)
+
+        pred = self.__transforme_torch_tensor(pred)
+        groud_truth = self.__transforme_torch_tensor(groud_truth)
+
         return pred, groud_truth
 
     def _generate_mel(self,cldnn, mel_noise, mel, vel_model, device):
@@ -147,9 +207,6 @@ class CLDNNInterface(Trainer):
 
         target_T = groud_truth.size(-1)  # 259
         pred = pred[..., :target_T]
-
-        # pred_list.append(pred)
-        # target_list.append(target_T)
 
         return pred, x1
 
@@ -217,30 +274,27 @@ class CLDNNInterface(Trainer):
                 cldnn = self.model.cldnn
                 vel_model = self.model.condUnet
 
-                pred, grouth_truth = self._get_training_type(cldnn, mel, mel_noise, vel_model)
+                pred, ground_truth = self._get_training_type(cldnn, mel, mel_noise, vel_model)
 
-                loss = self.criterion["mse"](pred, grouth_truth)
+                loss = self.criterion["mse"](pred, ground_truth)
 
                 total_loss += loss.item()
-
-                grouth_truth = mel
 
                 mel_noise = torch.tensor(mel_noise).to(self.device)
                 mel = torch.tensor(mel).to(self.device)
                 pred_infe = self.get_inference_type(mel_noise=mel_noise, mel=mel, n_steps=8)
 
-                if pred.dim() == 4:
-                    grouth_truth = grouth_truth.squeeze(0).detach().cpu().numpy()
-
+                ground_truth = mel.detach().cpu().numpy()
+                ground_truth = self.__prepare_mel(ground_truth)
+                pred_infe = self.__prepare_mel(pred_infe)
                 pred_infe = pred_infe.detach().cpu().numpy()
-                grouth_truth = grouth_truth.detach().cpu().numpy()
 
-                metrica = self._metricas_avalicao(metrica,grouth_truth, pred_infe, audio, sr)
+                metrica = self._metricas_avalicao(metrica,ground_truth, pred_infe, audio, sr)
 
                 if self.is_test and i > self.config["num_save_intermediate_results"]:
                     break
 
-        grouth_truth = grouth_truth.squeeze(0)
+        ground_truth = ground_truth.squeeze(0)
 
         pred = torch.tensor(pred_infe).transpose(1,2).detach().cpu().numpy()
 
@@ -258,7 +312,7 @@ class CLDNNInterface(Trainer):
 
         relatorio = self._create_relatorio(
             outs=pred,
-            grouth_truth=grouth_truth,
+            grouth_truth=ground_truth,
             loss_val=avg_loss,
             loss_train=self.loss_train,
             audio=audio[0],
