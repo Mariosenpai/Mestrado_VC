@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 
 from src.common.metricas.SNR import calculate_snr_tensor
@@ -26,19 +28,97 @@ class Metricas:
 
         self.model_mosnet = Mosnet()
 
-    def update(self, mel_org, wav_org, mel_clean, wav_clean, sample_rate:int):
+    def get_metricas(self,step):
+        print("mcd:", self.mcd/step,"\n",
+              "snr:",self.snr/step,"\n",
+              "psnr:",self.psnr/step,"\n",
+              "f0_rmse_log:",self.f0_rmse_log/step,"\n",
+              "msd:",self.msd/step,"\n",
+              "mosnet:",self.mosnet/step,"\n")
 
-        f0_rmse_log, f0_rmse_log_log, msd_log = metricas_para_audio(wav_org, wav_clean, sample_rate)
-        mcd_log, snr_log, psnr_log = metricas_para_mel(mel_org, mel_clean)
-        mos_log = metricas_naturalidade_mos(self.model_mosnet, wav_clean)
+    def update(
+            self,
+            mel_org,
+            wav_org,
+            mel_clean,
+            wav_clean,
+            sample_rate: int,
+            test_time:bool = False
+    ):
+        inicio_total = time.perf_counter()
+
+        # ==========================================
+        # MÉTRICAS DE ÁUDIO
+        # ==========================================
+        inicio = time.perf_counter()
+
+        f0_rmse_log_log, msd_log = metricas_para_audio(
+            wav_org,
+            wav_clean,
+            sample_rate
+        )
+
+        tempo_audio = time.perf_counter() - inicio
+
+        # ==========================================
+        # MÉTRICAS DE MEL
+        # ==========================================
+        inicio = time.perf_counter()
+
+        mcd_log, snr_log, psnr_log = metricas_para_mel(
+            mel_org,
+            mel_clean
+        )
+
+        tempo_mel = time.perf_counter() - inicio
+
+        # ==========================================
+        # MOSNET
+        # ==========================================
+        inicio = time.perf_counter()
+
+        mos_log = metricas_naturalidade_mos(
+            self.model_mosnet,
+            wav_clean
+        )
+
+        tempo_mosnet = time.perf_counter() - inicio
+
+        # ==========================================
+        # ATUALIZAÇÃO DAS MÉTRICAS
+        # ==========================================
+        inicio = time.perf_counter()
 
         self.mcd += mcd_log
         self.snr += snr_log
         self.psnr += psnr_log
-        self.f0_rmse += f0_rmse_log
+        self.f0_rmse += 0
         self.f0_rmse_log += f0_rmse_log_log
         self.msd += msd_log
         self.mosnet += mos_log
+
+        tempo_update = time.perf_counter() - inicio
+
+        # ==========================================
+        # TEMPO TOTAL
+        # ==========================================
+        tempo_total = time.perf_counter() - inicio_total
+        if test_time:
+            print("\n================ TEMPO MÉTRICAS ================")
+            print(f"metricas_para_audio       : {tempo_audio:.4f}s")
+            print(f"metricas_para_mel         : {tempo_mel:.4f}s")
+            print(f"metricas_naturalidade_mos : {tempo_mosnet:.4f}s")
+            print(f"atualização dos valores   : {tempo_update:.4f}s")
+            print("------------------------------------------------")
+            print(f"TOTAL                     : {tempo_total:.4f}s")
+            print("------------------------------------------------")
+            print(f"MDC         : {mcd_log:.4f}s")
+            print(f"SNR         : {snr_log:.4f}s")
+            print(f"PSNR        : {psnr_log:.4f}s")
+            print(f"F0-RMSE-LOG : {f0_rmse_log_log:.4f}s")
+            print(f"MSD         : {msd_log:.4f}s")
+            print(f"MOSNET      : {mos_log:.4f}s")
+            print("================================================\n")
 
 
 
@@ -52,11 +132,11 @@ def metricas_para_mel(mel_clean, mel_noise) -> tuple:
 def metricas_para_audio(wav_clean:list[np.array], wav_noise:list[np.array], sample_rate:int) -> tuple:
     wav_noise = [wav_noise]
     wav_clean = [wav_clean]
-    f0_rmse_result = f0_rmse(wav_noise, wav_clean, sample_rate)
+    # f0_rmse_result = f0_rmse(wav_noise, wav_clean, sample_rate)
     f0_rmse_log_result = f0_rmse_log(wav_noise, wav_clean, sample_rate)
     msd_result = msd(wav_noise, wav_clean, sample_rate)
 
-    return f0_rmse_result, f0_rmse_log_result, msd_result
+    return  f0_rmse_log_result, msd_result
 
 def metricas_naturalidade_mos(model_mosnet,wav):
     mos_log = model_mosnet.inference(wav)

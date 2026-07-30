@@ -1,4 +1,6 @@
 import os
+import time
+from collections import defaultdict
 from typing import Tuple, Union
 
 from torch.nn import functional as F
@@ -48,7 +50,7 @@ class CLDNNInterface(Trainer):
     def _train_step(self, batch):
 
         # mel_in, mel_target: (B, T, F)
-        audio, mel, mel_noise, sr, sentence = batch
+        audio,audio_noise, mel, mel_noise, sr, sentence = batch
         cldnn = self.model.cldnn
         vel_model = self.model.condUnet
 
@@ -91,7 +93,7 @@ class CLDNNInterface(Trainer):
 
         return x
 
-    def get_inference_type(self,**kwargs ):
+    def get_inference_type(self,**kwargs ) -> torch.Tensor:
 
         if self.model.cldnn.use_flow_matching:
             pred = self._inference_flow(x= kwargs["mel_noise"],n_steps=kwargs['n_steps'])
@@ -246,16 +248,14 @@ class CLDNNInterface(Trainer):
         self.model.train()
     def _genearete_and_save_intermediate_result(self):
 
-        # dirname = self._get_and_check_directory()
-        # total_mcd = 0
-        # total_psnr = 0
-        # total_snr = 0
+
         total_loss = 0
-        # total_mosnet = 0
-        # total_f0_rmse = 0
-        # total_f0_rmse_log = 0
-        # total_msd = 0
+
         metrica = Metricas()
+
+        tempos = defaultdict(float)
+
+        inicio_total = time.perf_counter()
 
         dirname = os.path.join(self.config["outdir"], f"predictions\\{self.steps}steps")
         # generate
@@ -269,41 +269,98 @@ class CLDNNInterface(Trainer):
 
             for i, batch in enumerate(pbar):
 
+                inicio_batch = time.perf_counter()
+
                 # mel_in, mel_target: (B, T, F)
-                audio, mel, mel_noise, sr, sentence = batch
+                audio,audio_noise, mel, mel_noise, sr, sentence = batch
                 cldnn = self.model.cldnn
                 vel_model = self.model.condUnet
 
+                # ========================================
+                # _get_training_type
+                # ========================================
+                t = time.perf_counter()
+
                 pred, ground_truth = self._get_training_type(cldnn, mel, mel_noise, vel_model)
 
-                loss = self.criterion["mse"](pred, ground_truth)
+                tempos["get_training_type"] += time.perf_counter() - t
 
+                # ========================================
+                # LOSS
+                # ========================================
+                t = time.perf_counter()
+
+                loss = self.criterion["mse"](pred, ground_truth)
                 total_loss += loss.item()
 
-                mel_noise = torch.tensor(mel_noise).to(self.device)
-                mel = torch.tensor(mel).to(self.device)
+                tempos["loss"] += time.perf_counter() - t
+
+                # ========================================
+                # transformação
+                # ========================================
+
+                mel_noise = self.__transforme_torch_tensor(mel_noise)
+                mel       = self.__transforme_torch_tensor(mel)
+
+                # ========================================
+                # INFERÊNCIA
+                # ========================================
+                t = time.perf_counter()
+
                 pred_infe = self.get_inference_type(mel_noise=mel_noise, mel=mel, n_steps=8)
 
+                tempos["inference"] += time.perf_counter() - t
+
+                # ========================================
+                # GPU -> CPU -> NUMPY
+                # ========================================
+                t = time.perf_counter()
+
+                # transformar o torch em numpy
                 ground_truth = mel.detach().cpu().numpy()
-                ground_truth = self.__prepare_mel(ground_truth)
-                pred_infe = self.__prepare_mel(pred_infe)
                 pred_infe = pred_infe.detach().cpu().numpy()
 
-                metrica = self._metricas_avalicao(metrica,ground_truth, pred_infe, audio, sr)
+                tempos["to_numpy"] += time.perf_counter() - t
+
+                # ========================================
+                # PREPARE MEL
+                # ========================================
+
+                # prepara o mel para o shape certo
+                ground_truth = self.__prepare_mel(ground_truth)
+                pred_infe = self.__prepare_mel(pred_infe)
+
+
+                # ========================================
+                # MÉTRICAS
+                # ========================================
+                t = time.perf_counter()
+
+                metrica = self._metricas_avalicao(metrica,ground_truth, pred_infe, audio,audio_noise, sr, self.is_test)
+
+                tempos["metricas"] += time.perf_counter() - t
+
+                # ========================================
+                # TEMPO TOTAL DO BATCH
+                # ========================================
+                tempos["batch"] += time.perf_counter() - inicio_batch
 
                 if self.is_test and i > self.config["num_save_intermediate_results"]:
                     break
 
-        ground_truth = ground_truth.squeeze(0)
+        if self.is_test:
+            self.__time_total(i,tempos,inicio_total)
+            print("Ground_truth shape:", ground_truth.shape)
+            print("Prediction shape:", pred_infe.shape)
 
-        pred = torch.tensor(pred_infe).transpose(1,2).detach().cpu().numpy()
+        pred = torch.tensor(pred_infe).detach().cpu().numpy()
 
         num_batches = i + 1
         avg_loss = total_loss / num_batches
         avg_mcd = metrica.mcd / num_batches
         avg_snr = metrica.snr / num_batches
         avg_psnr = metrica.psnr / num_batches
-        avg_f0_rmse = metrica.f0_rmse / num_batches
+        avg_f0_rmse = 0 # metrica.f0_rmse / num_batches
         avg_f0_rmse_log = metrica.f0_rmse_log / num_batches
         avg_msd = metrica.msd / num_batches
         avg_mosnet = metrica.mosnet / num_batches
@@ -348,3 +405,28 @@ class CLDNNInterface(Trainer):
 
 
         self.set_relatorio(relatorio)
+
+
+    def __time_total(self, i, tempos, inicio_total):
+        # ========================================
+        # RESULTADOS
+        # ========================================
+
+        num_batches = i + 1
+
+        print("\n\n================ TEMPOS ================")
+
+        for nome, tempo in tempos.items():
+            media = tempo / num_batches
+
+            print(
+                f"{nome:25s}: "
+                f"{tempo:8.3f}s total | "
+                f"{media:8.4f}s/batch"
+            )
+
+        tempo_total = time.perf_counter() - inicio_total
+
+        print("----------------------------------------")
+        print(f"TOTAL: {tempo_total:.3f}s")
+        print("========================================\n")

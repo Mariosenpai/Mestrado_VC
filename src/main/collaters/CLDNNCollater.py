@@ -39,6 +39,7 @@ class CLDNNCollater(object):
             return pad
 
         audios = []
+        audios_noise = []
         xs = []
         ys = []
         srs = []
@@ -60,10 +61,11 @@ class CLDNNCollater(object):
             ys.append(y)
 
             audios.append(b["audio"])
+            audios_noise.append(b["audio_noise"])
             sentences.append(b["sentence"])
             srs.append(b["sample_rate"])
 
         xs = pad_list([torch.from_numpy(x).float().transpose(1, 0) for x in xs], 0)
         ys = pad_list([torch.from_numpy(y).float().transpose(1, 0) for y in ys], 0)
 
-        return audios, ys, xs, srs, sentences
+        return audios,audios_noise, ys, xs, srs, sentences

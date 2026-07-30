@@ -33,7 +33,7 @@ if __name__ == "__main__":
     path_dataset = ROOT / "dataset" / "cv-corpus-mozilla-pt" / "data"
     path_model_checkpoint = None # ROOT / "src" / "config" / "modelCheckpoint" / "CLDNN" / "flow-matching-checkpoint-50000steps.pkl"
     path_model_params = None # ROOT / "src" / "config" / "yaml" / "cldnn_vc.mel.v1.yaml"
-    epochs = 6
+    epochs = 5
     list_mods = []
     is_test = False
 
