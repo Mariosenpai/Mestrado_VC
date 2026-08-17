@@ -336,7 +336,7 @@ class CLDNNInterface(Trainer):
                 # ========================================
                 t = time.perf_counter()
 
-                metrica = self._metricas_avalicao(metrica,ground_truth, pred_infe, audio,audio_noise, sr, self.is_test)
+                metrica = self._metricas_avalicao(metrica,ground_truth, pred_infe, audio, sr, self.is_test)
 
                 tempos["metricas"] += time.perf_counter() - t
 

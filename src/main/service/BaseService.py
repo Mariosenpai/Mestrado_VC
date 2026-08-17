@@ -31,6 +31,7 @@ class BaseService:
         if path_model_checkpoint is not None or path_model_checkpoint == "":
             print("Carregando o modelo pre-treinado ...")
             trainer.load_checkpoint(path_model_checkpoint)
+            trainer.steps = 0
 
         print("Iniciando o treinamento:")
         trainer.run_wandb(name_experiment, config={"epochs": 5})

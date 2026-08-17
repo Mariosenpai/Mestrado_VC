@@ -169,7 +169,10 @@ class AASVCTrainerInterface(AASVCTrainer):
                 output_inference = self.gpu_to_cpu(output_inference.squeeze(0))
                 grouth_truth = self.gpu_to_cpu(grouth_truth.squeeze(0))
 
-                metrica = self._metricas_avalicao(metrica,ys, after_outs, audios,srs)
+                output_for_metrics = after_outs.transpose(1, 2).detach().cpu().numpy()
+                ys = torch.Tensor(ys).transpose(1, 2).detach().cpu().numpy()
+
+                metrica = self._metricas_avalicao(metrica,ys, output_for_metrics, audios,srs)
 
                 # ==========================
                 # Inference
@@ -201,7 +204,7 @@ class AASVCTrainerInterface(AASVCTrainer):
                         sf.write(
                             os.path.join(dirname, "wav", f"{i}_gen.wav"),
                             audio,
-                            self.vocoder.sr_hifigan(),
+                            self.vocoder.sr_vocoder(),
                             "PCM_16",
                         )
 
@@ -210,16 +213,26 @@ class AASVCTrainerInterface(AASVCTrainer):
                 if self.is_test and i > self.config["num_save_intermediate_results"]:
                     break
 
+        grouth_truth     = torch.tensor(grouth_truth).transpose(0,1).unsqueeze(0).detach().cpu().numpy()
+        output_inference = torch.tensor(output_inference).transpose(0,1).unsqueeze(0).detach().cpu().numpy()
+
+        if self.is_test:
+            print("Ground_truth shape:", grouth_truth.shape)
+            print("Prediction shape:", output_inference.shape)
+
+
+
         num_batches = i + 1
 
         avg_loss = total_loss / num_batches
         avg_mcd = metrica.mcd / num_batches
         avg_snr = metrica.snr / num_batches
         avg_psnr = metrica.psnr / num_batches
-        avg_f0_rmse = metrica.f0_rmse / num_batches
+        avg_f0_rmse = 0 # metrica.f0_rmse / num_batches
         avg_f0_rmse_log = metrica.f0_rmse_log / num_batches
         avg_msd = metrica.msd / num_batches
         avg_mosnet = metrica.mosnet / num_batches
+
 
         relatorio = self._create_relatorio(
             outs=output_inference,
@@ -237,20 +250,26 @@ class AASVCTrainerInterface(AASVCTrainer):
             sr=srs[0]
         )
 
+
         data = {
             "mdc": float(relatorio.mdc),
             "snr": relatorio.snr.float(),
             "psnr": relatorio.psnr,
+            "mosnet": relatorio.mosnet,
+            "f0_rmse": relatorio.f0_rmse,
+            "f0_rmse_log": relatorio.f0_rmse_log,
+            "msd": relatorio.msd,
             "loss_train": self.loss_train,
             "loss_val": avg_loss,
         }
-
-        with open(os.path.join(dirname, "relatorio.json"), "w") as f:
+        os.makedirs(dirname, exist_ok=True)
+        with open(os.path.join(dirname, "relatorio.json"), "w", encoding="utf-8") as f:
             f.write(f"---------------------------------------------------------------------------------------------\n"
                     f"Metricas: {data}\n"
                     f"Steps:    {self.steps}\n"
                     f"Epochs:   {self.epochs}"
                     f"\n---------------------------------------------------------------------------------------------")
+
 
         self.set_relatorio(relatorio)
 
@@ -275,13 +294,13 @@ class AASVCTrainerInterface(AASVCTrainer):
 
         return y, output_inference
 
-    def _vocoder_inference(self, output_inference):
-        if self.vocoder is not None:
-            y = self.vocoder.inference(
-                torch.Tensor(output_inference).float().transpose(1, 0).unsqueeze(0).cuda()
-            )  # tem q ser um tensor
-            audio = y.squeeze(0).squeeze(0).detach().cpu().numpy().astype("float32")
-            return audio, self.vocoder.sr_hifigan()
+    #def _vocoder_inference(self, output_inference):
+    #    if self.vocoder is not None:
+    #        y = self.vocoder.inference(
+    #            torch.Tensor(output_inference).float().transpose(1, 0).unsqueeze(0).cuda()
+    #        )  # tem q ser um tensor
+    #        audio = y.squeeze(0).squeeze(0).detach().cpu().numpy().astype("float32")
+    #        return audio, self.vocoder.sr_vocoder()
 
     def fix_shape_min(self, obj1: torch.Tensor, obj2: torch.Tensor):
         T = min(obj1.size(1), obj2.size(1))

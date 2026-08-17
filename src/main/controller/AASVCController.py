@@ -26,10 +26,10 @@ if __name__ == "__main__":
 
     ROOT = Path.cwd().resolve().parent.parent.parent
     path_dataset = ROOT / "dataset" / "cv-corpus-mozilla-pt" / "data"
-    path_model_checkpoint = ROOT / "src" / "config" / "modelCheckpoint" / "AASVC" / "checkpoint-100000steps.pkl"
+    path_model_checkpoint = ROOT / "src" / "config" / "modelCheckpoint" / "AASVC" / "checkpoint-20000steps.pkl"
     path_model_params = ROOT / "src" / "config" / "yaml" / "aas_vc.melmelmel.v1.yaml"
     epochs = 5
-    name_experiment = "aasvc-mel-pytorch"
+    name_experiment = "aasvc-all-metrics"
     is_test = False
 
     controller = AASVCController(
