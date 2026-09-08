@@ -52,9 +52,11 @@ class NARVCCollater(object):
         ys = []
         dp_inputs = []
         audios = []
+        audios_noise = []
         srs = []
         ilens = []
         olens = []
+
 
         for b in batch:
             # Definir um tamanho padrão
@@ -73,6 +75,7 @@ class NARVCCollater(object):
             dp_inputs.append(b["duraction_input"].squeeze(0))  # (batch, frames, frequencia)
 
             audios.append(b["audio"])
+            audios_noise.append(b["audio_noise"])
             srs.append(b["sample_rate"])
 
             # get list of lengths (must be tensor for DataParallel)
@@ -107,6 +110,7 @@ class NARVCCollater(object):
             "dplens": dplens,
             "spembs": None,
             "audio": audios,
+            "audio_noise":audios_noise,
             "sr": srs,
         }
 

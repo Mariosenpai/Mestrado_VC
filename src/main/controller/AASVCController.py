@@ -23,13 +23,13 @@ class AASVCController(BaseController):
 
 
 if __name__ == "__main__":
-
+    # print("sou nub :O " * 1000)
     ROOT = Path.cwd().resolve().parent.parent.parent
     path_dataset = ROOT / "dataset" / "cv-corpus-mozilla-pt" / "data"
-    path_model_checkpoint = ROOT / "src" / "config" / "modelCheckpoint" / "AASVC" / "checkpoint-20000steps.pkl"
+    path_model_checkpoint = ROOT / "src" / "config" / "modelCheckpoint" / "AASVC" / "pre-trainer-checkpoint-50000steps.pkl"
     path_model_params = ROOT / "src" / "config" / "yaml" / "aas_vc.melmelmel.v1.yaml"
-    epochs = 5
-    name_experiment = "aasvc-all-metrics"
+    epochs = 10
+    name_experiment = "aasvc-all-metrics-pre-trainer"
     is_test = False
 
     controller = AASVCController(
