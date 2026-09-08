@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 import yaml
 
@@ -61,8 +63,9 @@ class AASVCParameters:
             "minlenratio": 6.0,
             "maxlenratio": 0.0,
         }
+        ROOT = Path.cwd().resolve().parent.parent.parent
         self.config = {
-            "outdir": f"/home/mario/Mestrado_VC/experiments/{name_experiment}",
+            "outdir": ROOT / "experiments"/ f"{name_experiment}",
             "train_max_steps": 10000 * epochs,
             "log_interval_steps": 10,
             "eval_interval_steps": 10000,

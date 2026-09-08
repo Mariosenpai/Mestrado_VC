@@ -57,6 +57,7 @@ class NARVCCollater(object):
         ilens = []
         olens = []
 
+
         for b in batch:
             # Definir um tamanho padrão
             x = b["mel_noise"]
