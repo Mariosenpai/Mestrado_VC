@@ -3,7 +3,7 @@ from pathlib import Path
 import librosa
 import numpy as np
 import scipy
-import tensorflow
+import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import Model, layers
 from tensorflow.keras.layers import Dense, Dropout, Conv2D
@@ -47,10 +47,11 @@ class CNN_BLSTM(object):
         re_shape = layers.Reshape((-1, 4 * 128), input_shape=(-1, 4, 128))(conv4)
 
         # BLSTM
-        blstm1 = Bidirectional(
-            LSTM(128, return_sequences=True, dropout=0.3,
-                 recurrent_dropout=0.3, recurrent_constraint=max_norm(0.00001)),
-            merge_mode='concat')(re_shape)
+        with tf.device('/CPU:0'):
+            blstm1 = Bidirectional(
+                LSTM(128, return_sequences=True, dropout=0.3,
+                     recurrent_dropout=0.3, recurrent_constraint=max_norm(0.00001)),
+                merge_mode='concat')(re_shape)
 
         # DNN
         flatten = TimeDistributed(layers.Flatten())(blstm1)
@@ -120,8 +121,8 @@ class Mosnet:
         model = self.model
         mag_sgram = self.get_spectrograms(audio)
         mag_sgram = self.preprocesse_melgram(mag_sgram)
-
-        Average_score, _ = model.predict(mag_sgram, verbose=0, batch_size=1)
+        with tf.device('/CPU:0'):
+            Average_score, _ = model.predict(mag_sgram, verbose=0, batch_size=1)
 
         return Average_score[0][0]
 
